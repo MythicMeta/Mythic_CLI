@@ -28,7 +28,7 @@ import (
 
 var mythicServices = []string{"mythic_postgres", "mythic_react", "mythic_server", "mythic_redis", "mythic_nginx", "mythic_rabbitmq", "mythic_graphql", "mythic_documentation"}
 var mythicEnv = viper.New()
-var mythicCliVersion = "1"
+var mythicCliVersion = "0.0.1"
 
 func stringInSlice(value string, list []string) bool {
 	for _, e := range list {
@@ -1056,6 +1056,19 @@ func listGroupEntries(group string) {
 	fmt.Printf("Docker-compose entries:\n")
 	for _, entry := range dockerComposeEntries {
 		fmt.Printf("[+] %s\n", entry)
+	}
+	var exclusion_list []string
+	if group == "c2" {
+		exclusion_list = strings.Split(mythicEnv.GetString("EXCLUDED_C2_PROFILES"), ",")
+	} else if group == "payload" {
+		exclusion_list = strings.Split(mythicEnv.GetString("EXCLUDED_PAYLOAD_TYPES"), ",")
+	}
+	if len(exclusion_list) > 0 && exclusion_list[0] != "" {
+		fmt.Printf("Excluded entries from .env and environment variables:\n")
+		for _, entry := range exclusion_list {
+			fmt.Printf("[-] %s\n", entry)
+		}
+		
 	}
 	// list out which group entities exist on disk, which could be different than what's in the docker-compose file
 	var targetFolder string
