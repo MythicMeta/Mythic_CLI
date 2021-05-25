@@ -8,9 +8,9 @@ import (
     "github.com/spf13/viper"
     "sort"
     "log"
-    "math/rand"
+    "crypto/rand"
     "strings"
-    "time"
+    "math/big"
     "github.com/docker/docker/client"
     "github.com/docker/docker/api/types"
     "context"
@@ -75,11 +75,14 @@ func displayHelp(){
     fmt.Println("  version")
 }
 func generateRandomPassword(pw_length int) string{
-    rand.Seed(time.Now().UnixNano())
     chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
     var b strings.Builder
     for i := 0; i < pw_length; i++ {
-        b.WriteRune(chars[rand.Intn(len(chars))])
+    	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+    	if err != nil {
+    		log.Fatalf("[-] Failed to generate random number for password generation\n")
+    	}
+        b.WriteRune(chars[nBig.Int64()])
     }
     return b.String() 
 }
@@ -181,18 +184,26 @@ func env(args []string){
 		}else{
 			mythicEnv.Set(args[1], args[2])
 		}
-		mythicEnv.WriteConfig()
-		fmt.Printf("[+] Successfully updated configuration in .env\n")
+		mythicEnv.Get(args[1])
+		err := mythicEnv.WriteConfig()
+		if err != nil {
+			fmt.Printf("[-] Failed to write config: %v\n", err)
+		}else{
+			fmt.Printf("[+] Successfully updated configuration in .env\n")
+		}
+		
     default:
         fmt.Println("[-] Unknown env subcommand:", args[0])
     }
 }
 func status(){
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("[-] Failed to get client in status check: %v", err)
 	}
-	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{
+		All: true,
+	})
 	if err != nil {
 		log.Fatalf("[-] Failed to get container list: %v", err)
 	}
@@ -203,6 +214,9 @@ func status(){
 		c2_services := []string{}
 		payload_services := []string{}
 		for _, container := range containers {
+			if container.Labels["name"] == "" {
+				continue
+			}
 			info := fmt.Sprintf("%s\t%s\t%s\t", container.Labels["name"], container.State, container.Status)
 			if len(container.Ports) > 0 {
 				for _, port := range container.Ports {
@@ -256,7 +270,7 @@ func status(){
 	}
 }
 func logs(containerName string){
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("Failed to get client in logs: %v", err)
 	}
@@ -270,6 +284,7 @@ func logs(containerName string){
 				reader, err := cli.ContainerLogs(context.Background(), container.ID, types.ContainerLogsOptions{
 					ShowStdout: true,
 					ShowStderr: true,
+					Tail: "500",
 				})
 				if err != nil {
 					log.Fatalf("Failed to get container logs: %v", err)
@@ -751,7 +766,7 @@ func addRemoveDockerComposeEntries(action string, group string, names []string) 
     }
 	return nil
 }
-func installFolder(installPath string, args []string) {
+func installFolder(installPath string, args []string) error {
 	workingPath := getCwdFromExe()
 	overWrite := false
 	if len(args) > 0 {
@@ -767,17 +782,19 @@ func installFolder(installPath string, args []string) {
 	    config.AddConfigPath(installPath)
 	    if err := config.ReadInConfig(); err != nil {
 	        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-	            log.Fatalf("[-] Error while reading in config file: %s", err)
+	            fmt.Printf("[-] Error while reading in config file: %s", err)
+	            return err
 	        } else {
-	            log.Fatalf("[-] Error while parsing config file: %s", err)
+	            fmt.Printf("[-] Error while parsing config file: %s", err)
+	            return err
 	        }
 	    }
 	    if !config.GetBool("exclude_payload_type") {
 	    	// handle the payload type copying here
 	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "Payload_Type"))
 	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of new Payload_Type folder\n")
-	    		return
+	    		fmt.Printf("[-] Failed to list contents of new Payload_Type folder: %v\n", err)
+	    		return err
 	    	}
 	    	for _, f := range files {
 	    		if f.IsDir() {
@@ -787,7 +804,14 @@ func installFolder(installPath string, args []string) {
 	    					fmt.Printf("[*] Stopping current container\n")
 	    					startStop("stop", "payload", []string{f.Name()})
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "Payload_Types", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "Payload_Types", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next payload\n")
+    							continue
+	    					}else{
+	    						fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping Payload Type, %s\n", f.Name())
 	    					continue
@@ -796,7 +820,7 @@ func installFolder(installPath string, args []string) {
 	    			fmt.Printf("[*] Copying new version into place\n")
 	    			err = copyDir(filepath.Join(installPath, "Payload_Type", f.Name()), filepath.Join(workingPath, "Payload_Types", f.Name()))
 	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy directory over\n")
+	    				fmt.Printf("[-] Failed to copy directory over: %v\n", err)
 	    				continue
 	    			}
 	    			// need to make sure the payload_service.sh file is executable
@@ -823,7 +847,7 @@ func installFolder(installPath string, args []string) {
 	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "C2_Profiles"))
 	    	if err != nil {
 	    		fmt.Printf("[-] Failed to list contents of C2_Profiles folder from clone\n")
-	    		return
+	    		return err
 	    	}
 	    	for _, f := range files {
 	    		if f.IsDir() {
@@ -833,7 +857,14 @@ func installFolder(installPath string, args []string) {
 	    					fmt.Printf("[*] Stopping current container\n")
 	    					startStop("stop", "c2", []string{f.Name()})
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "C2_Profiles", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "C2_Profiles", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next c2 profile\n")
+    							continue
+	    					}else{
+	    						fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping C2 Profile, %s\n", f.Name())
 	    					continue
@@ -857,7 +888,7 @@ func installFolder(installPath string, args []string) {
 	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-payload"))
 	    	if err != nil {
 	    		fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone\n")
-	    		return
+	    		return err
 	    	}
 	    	for _, f := range files {
 	    		if f.IsDir() {
@@ -865,7 +896,14 @@ func installFolder(installPath string, args []string) {
 	    			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name())) {
 	    				if overWrite || askConfirm(f.Name() + " documentation already exists. Replace current version? "){
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next payload documentation\n")
+	    						continue
+	    					}else{
+	    						fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping documentation for , %s\n", f.Name())
 	    					continue
@@ -886,7 +924,7 @@ func installFolder(installPath string, args []string) {
 	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-c2"))
 	    	if err != nil {
 	    		fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone")
-	    		return
+	    		return err
 	    	}
 	    	for _, f := range files {
 	    		if f.IsDir() {
@@ -894,7 +932,14 @@ func installFolder(installPath string, args []string) {
 	    			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name())) {
 	    				if overWrite || askConfirm(f.Name() + " documentation already exists. Replace current version? "){
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next c2 documentation\n")
+	    						continue
+	    					}else{
+	    						fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping documentation for %s\n", f.Name())
 	    					continue
@@ -915,7 +960,7 @@ func installFolder(installPath string, args []string) {
 	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "agent_icons"))
 	    	if err != nil {
 	    		fmt.Printf("[-] Failed to list contents of agent_icons folder from clone: %v\n", err)
-	    		return
+	    		return err
 	    	}
 	    	for _, f := range files {
 	    		if !f.IsDir() && f.Name() != ".gitkeep" && f.Name() != ".keep" {
@@ -923,7 +968,14 @@ func installFolder(installPath string, args []string) {
 	    			if fileExists(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name())) {
 	    				if overWrite || askConfirm(f.Name() + " agent icon already exists. Replace current version? "){
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next icon\n")
+	    						continue
+	    					}else{
+    							fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping agent icon for %s\n", f.Name())
 	    					continue
@@ -938,7 +990,14 @@ func installFolder(installPath string, args []string) {
 	    			if fileExists(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name())) {
 	    				if overWrite || askConfirm(f.Name() + " agent icon already exists for new UI. Replace current version? "){
 	    					fmt.Printf("[*] Removing current version\n")
-	    					os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
+	    					err = os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
+	    					if err != nil {
+	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
+	    						fmt.Printf("[-] Continuing to the next agent icon\n")
+	    						continue
+	    					}else{
+	    						fmt.Printf("[+] Successfully removed the current version\n")
+	    					}
 	    				}else{
 	    					fmt.Printf("[!] Skipping new UI agent icon for %s\n", f.Name())
 	    					continue
@@ -957,8 +1016,9 @@ func installFolder(installPath string, args []string) {
 
 	}else{
 		fmt.Printf("[-] Failed to find config.json in cloned down repo\n")
-		return
+		return nil
 	}
+	return nil
 }
 func installAgent(url string, args []string) {
 	// make our temp directory to clone into
@@ -1003,16 +1063,24 @@ func databaseReset() {
 	startStop("stop", "mythic", []string{})
 	workingPath := getCwdFromExe()
 	fmt.Printf("[*] Removing database files\n")
-	os.RemoveAll(filepath.Join(workingPath, "postgres-docker", "database"))
-	fmt.Printf("[+] Successfully reset datbase files\n")
+	err := os.RemoveAll(filepath.Join(workingPath, "postgres-docker", "database"))
+	if err != nil {
+		fmt.Printf("[-] Failed to remove database files\n")
+	}else{
+		fmt.Printf("[+] Successfully reset datbase files\n")
+	}	
 }
 func rabbitmqReset() {
 	fmt.Printf("[*] Stopping Mythic\n")
 	startStop("stop", "mythic", []string{})
 	workingPath := getCwdFromExe()
 	fmt.Printf("[*] Removing rabbitmq files\n")
-	os.RemoveAll(filepath.Join(workingPath, "rabbitmq-docker", "storage"))
-	fmt.Printf("[+] Successfully reset rabbitmq files\n")
+	err := os.RemoveAll(filepath.Join(workingPath, "rabbitmq-docker", "storage"))
+	if err != nil {
+		fmt.Printf("[-] Failed to reset rabbitmq files\n")
+	}else{
+		fmt.Printf("[+] Successfully reset rabbitmq files\n")
+	}	
 }
 func checkPorts() error{
 	// go through the different services in mythicEnv and check to make sure their ports aren't already used by trying to open them
@@ -1036,7 +1104,11 @@ func checkPorts() error{
 				fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt(val), err)
 				return err
 			}
-			p.Close()
+			err = p.Close()
+			if err != nil {
+				fmt.Printf("[-] Failed to close connection: %v\n", err)
+				return err
+			}
 		}
 	}
 	p, err := net.Listen("tcp", "127.0.0.1:" + strconv.Itoa(mythicEnv.GetInt("REDIS_PORT")))
@@ -1044,7 +1116,11 @@ func checkPorts() error{
 		fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt("REDIS_PORT"), err)
 		return err
 	}
-	p.Close()
+	err = p.Close()
+	if err != nil {
+		fmt.Printf("[-] Failed to close connection: %v\n", err)
+		return err
+	}
 	return nil
 }
 func listGroupEntries(group string) {
@@ -1075,10 +1151,10 @@ func listGroupEntries(group string) {
 	var groupName string
 	if group == "c2" {
 		targetFolder = "C2_Profiles"
-		groupName = "C2 Profile"
+		groupName = "C2 Profiles"
 	} else {
 		targetFolder = "Payload_Types"
-		groupName = "Payload Type"
+		groupName = "Payload Types"
 	}
 	files, err := ioutil.ReadDir(filepath.Join(getCwdFromExe(), targetFolder))
 	if err != nil {
