@@ -24,6 +24,12 @@ import (
     "text/tabwriter"
     "net"
     "strconv"
+    "crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"time"
 )
 
 var mythicServices = []string{"mythic_postgres", "mythic_react", "mythic_server", "mythic_redis", "mythic_nginx", "mythic_rabbitmq", "mythic_graphql", "mythic_documentation"}
@@ -1169,6 +1175,86 @@ func listGroupEntries(group string) {
 	}
 	// list out which group entities are running
 }
+// code to generate self-signed certs pulled from github.com/kabukky/httpscerts
+// and from http://golang.org/src/crypto/tls/generate_cert.go.
+// only modifications were to use a specific elliptic curve cipher
+func checkCerts(certPath string, keyPath string) error {
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		return err
+	} else if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+func generateCerts() error {
+	if !dirExists(filepath.Join(getCwdFromExe(), "nginx-docker", "ssl")) {
+		err := os.MkdirAll(filepath.Join(getCwdFromExe(), "nginx-docker", "ssl"), os.ModePerm)
+		if err != nil {
+			fmt.Printf("[-] Failed to make ssl folder in nginx-docker folder\n")
+			return err
+		}
+		fmt.Printf("[+] Successfully made ssl folder in nginx-docker folder\n")
+	}
+	certPath := filepath.Join(getCwdFromExe(), "nginx-docker", "ssl", "mythic-cert.crt")
+	keyPath := filepath.Join(getCwdFromExe(), "nginx-docker", "ssl", "mythic-ssl.key")
+	if checkCerts(certPath, keyPath) == nil {
+		fmt.Printf("[+] Mythic certificates already exist\n")
+		return nil
+	}
+	fmt.Printf("[*] Failed to find SSL certs for Nginx container, generating now...\n")
+	priv, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		fmt.Printf("[-] failed to generate private key: %s\n", err)
+		return err
+	}
+	notBefore := time.Now()
+	oneYear := 365 * 24 * time.Hour
+	notAfter := notBefore.Add(oneYear)
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		fmt.Printf("[-] failed to generate serial number: %s\n", err)
+		return err
+	}
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Mythic"},
+		},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		fmt.Printf("[-] Failed to create certificate: %s\n", err)
+		return err
+	}
+	certOut, err := os.Create(certPath)
+	if err != nil {
+		fmt.Printf("[-] failed to open "+certPath+" for writing: %s\n", err)
+		return err
+	}
+	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	certOut.Close()
+	keyOut, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		log.Print("failed to open "+keyPath+" for writing:", err)
+		return err
+	}
+	marshalKey, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		fmt.Printf("[-] Unable to marshal ECDSA private key: %v\n", err)
+		return err
+	}
+	pem.Encode(keyOut, &pem.Block{Type:"EC PRIVATE KEY", Bytes: marshalKey})
+	keyOut.Close()
+	fmt.Printf("[+] Successfully generated new SSL certs\n")
+	return nil
+}
 func main() {
     if len(os.Args) <= 1 {
         displayHelp()
@@ -1186,6 +1272,10 @@ func main() {
 		parseMythicEnvironmentVariables()
 		switch os.Args[2]{
 		case "start":
+			err := generateCerts()
+			if err != nil {
+				os.Exit(1)
+			}
 			fallthrough
 		case "stop":
 			startStop(os.Args[2], os.Args[1], os.Args[3:])
