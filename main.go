@@ -286,7 +286,7 @@ func logs(containerName string){
 	}
 	if len(containers) > 0 {
 		for _, container := range containers {
-			if container.Image == containerName {
+			if container.Labels["name"] == containerName {
 				reader, err := cli.ContainerLogs(context.Background(), container.ID, types.ContainerLogsOptions{
 					ShowStdout: true,
 					ShowStderr: true,
