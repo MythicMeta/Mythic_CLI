@@ -1056,12 +1056,15 @@ func installAgent(url string, args []string) {
 		err = runGitClone([]string{"-c", "http.sslVerify=false", "clone", "--recurse-submodules", "--single-branch", "--branch", branch, url, filepath.Join(workingPath, "tmp")})
 	}
 	if err != nil {
-		return
+		log.Fatalf("[-] Failed to clone down repository")
 	}
 	if overWrite {
-		installFolder(filepath.Join(workingPath, "tmp"), []string{"-f"})
+		err = installFolder(filepath.Join(workingPath, "tmp"), []string{"-f"})
 	} else {
-		installFolder(filepath.Join(workingPath, "tmp"), []string{})
+		err = installFolder(filepath.Join(workingPath, "tmp"), []string{})
+	}
+	if err != nil {
+		log.Fatalf("[-] Failed to install: %v", err)
 	}
 }
 func databaseReset() {
@@ -1320,7 +1323,7 @@ func main() {
     	} else if os.Args[2] == "folder" {
     		installFolder(os.Args[3], os.Args[4:])
     	} else {
-    		fmt.Printf("[-] unknown install location; should be 'github' or 'folder'\n")
+    		log.Fatalf("[-] unknown install location; should be 'github' or 'folder'\n")
     	} 	
 	case "status":
 		status()
