@@ -1096,6 +1096,7 @@ func checkPorts() error{
 	//RABBITMQ_HOST:RABBITMQ_PORT
 	//DOCUMENTATION_HOST:DOCUMENTATION_PORT
 	//0.0.0.0:REDIS_PORT
+	//0.0.0.0:NGINX_PORT
 	portChecks := map[string]string{
 		"MYTHIC_SERVER_HOST": "MYTHIC_SERVER_PORT",
 		"POSTGRES_HOST": "POSTGRES_PORT",
@@ -1105,7 +1106,7 @@ func checkPorts() error{
 	}
 	for key, val := range portChecks {
 		if mythicEnv.GetString(key) == "127.0.0.1" {
-			p, err := net.Listen("tcp", "127.0.0.1:" + strconv.Itoa(mythicEnv.GetInt(val)))
+			p, err := net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt(val)))
 			if err != nil {
 				fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt(val), err)
 				return err
@@ -1117,7 +1118,7 @@ func checkPorts() error{
 			}
 		}
 	}
-	p, err := net.Listen("tcp", "127.0.0.1:" + strconv.Itoa(mythicEnv.GetInt("REDIS_PORT")))
+	p, err := net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt("REDIS_PORT")))
 	if err != nil {
 		fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt("REDIS_PORT"), err)
 		return err
@@ -1127,6 +1128,12 @@ func checkPorts() error{
 		fmt.Printf("[-] Failed to close connection: %v\n", err)
 		return err
 	}
+	p, err = net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
+	if err != nil {
+		fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt("NGINX_PORT"), err)
+		return err
+	}
+	err = p.Close()
 	return nil
 }
 func listGroupEntries(group string) {
@@ -1258,7 +1265,7 @@ func generateCerts() error {
 func main() {
     if len(os.Args) <= 1 {
         displayHelp()
-        os.Exit(1)
+        os.Exit(0)
     }
     switch os.Args[1] {
     case "mythic":
@@ -1278,7 +1285,10 @@ func main() {
 			}
 			fallthrough
 		case "stop":
-			startStop(os.Args[2], os.Args[1], os.Args[3:])
+			err := startStop(os.Args[2], os.Args[1], os.Args[3:])
+			if err != nil {
+				os.Exit(1)
+			}
     	case "add":
     		fallthrough
     	case "remove":
