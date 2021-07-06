@@ -1090,10 +1090,16 @@ func installAgent(url string, args []string) {
 	// make our temp directory to clone into
 	workingPath := getCwdFromExe()
 	fmt.Printf("[*] Creating temporary directory\n")
+	if dirExists(filepath.Join(workingPath, "tmp")) {
+		err := os.RemoveAll(filepath.Join(workingPath, "tmp"))
+		if err != nil {
+			log.Fatalf("[-] tmp directory couldn't be deleted for a fresh install: %v", err)
+		}
+	}
 	err := os.Mkdir(filepath.Join(workingPath, "tmp"), 0755)
 	defer os.RemoveAll(filepath.Join(workingPath, "tmp"))
 	if err != nil {
-		log.Fatalf("[-] Failed to make temp directory for cloning")
+		log.Fatalf("[-] Failed to make temp directory for cloning: %v", err)
 	}
 	overWrite := false
 	branch := ""
@@ -1116,7 +1122,7 @@ func installAgent(url string, args []string) {
 		err = runGitClone([]string{"-c", "http.sslVerify=false", "clone", "--recurse-submodules", "--single-branch", "--branch", branch, url, filepath.Join(workingPath, "tmp")})
 	}
 	if err != nil {
-		log.Fatalf("[-] Failed to clone down repository")
+		log.Fatalf("[-] Failed to clone down repository: %v", err)
 	}
 	if overWrite {
 		err = installFolder(filepath.Join(workingPath, "tmp"), []string{"-f"})
