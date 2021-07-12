@@ -1081,8 +1081,7 @@ func installFolder(installPath string, args []string) error {
 	    	startStop("start", "mythic", []string{"mythic_documentation"})
 	    }
 	}else{
-		fmt.Printf("[-] Failed to find config.json in cloned down repo\n")
-		return nil
+		log.Fatal("[-] Failed to find config.json in cloned down repo\n")
 	}
 	return nil
 }
