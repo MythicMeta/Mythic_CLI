@@ -36,7 +36,7 @@ import (
 
 var mythicServices = []string{"mythic_postgres", "mythic_react", "mythic_server", "mythic_redis", "mythic_nginx", "mythic_rabbitmq", "mythic_graphql", "mythic_documentation"}
 var mythicEnv = viper.New()
-var mythicCliVersion = "0.0.2"
+var mythicCliVersion = "0.0.3"
 
 func stringInSlice(value string, list []string) bool {
 	for _, e := range list {
@@ -928,6 +928,17 @@ func installFolder(installPath string, args []string) error {
 	    			err = copyDir(filepath.Join(installPath, "C2_Profiles", f.Name()), filepath.Join(workingPath, "C2_Profiles", f.Name()))
 	    			if err != nil {
 	    				fmt.Printf("[-] Failed to copy directory over\n")
+	    				continue
+	    			}
+	    			// need to make sure the c2_service.sh file is executable
+	    			if fileExists(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh")) {
+	    				err = os.Chmod(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh"), 0777)
+	    				if err != nil {
+	    					fmt.Printf("[-] Failed to make c2_service.sh file executable\n")
+	    					continue
+	    				}
+	    			} else {
+	    				fmt.Printf("[-] failed to find c2_service file for %s\n", f.Name())
 	    				continue
 	    			}
 	    			// now add payload type to yaml config
