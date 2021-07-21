@@ -4,7 +4,7 @@ Golang code for the `mythic-cli` binary in Mythic. This binary provides control 
 ## mythic-cli help
 
 ```
-mythic-cli usage ( v 0.0.2 ):
+mythic-cli usage ( v 0.0.3 ):
   help
   mythic {start|stop} [service name...]
   c2 {start|stop|add|remove|list} [c2profile ...]
@@ -36,4 +36,4 @@ The binary distributed with Mythic is compiled with `go build -ldflags="-s -w" -
 
 ## Version
 
-The current version of the `mythic-cli` code is `0.0.1`
+The current version of the `mythic-cli` code is `0.0.3`
