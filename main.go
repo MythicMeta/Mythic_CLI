@@ -36,7 +36,7 @@ import (
 
 var mythicServices = []string{"mythic_postgres", "mythic_react", "mythic_server", "mythic_redis", "mythic_nginx", "mythic_rabbitmq", "mythic_graphql", "mythic_documentation"}
 var mythicEnv = viper.New()
-var mythicCliVersion = "0.0.3"
+var mythicCliVersion = "0.0.4"
 
 func stringInSlice(value string, list []string) bool {
 	for _, e := range list {
@@ -1220,6 +1220,14 @@ func testMythicConnection(){
 	sleepTime := int64(10)
 	count := make([]int, maxCount)
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 8, 2, '\t', 0)
+	fmt.Fprintln(w, "MYTHIC SERVICE\tWEB ADDRESS")
+	fmt.Fprintln(w, "Nginx (Mythic Web UI)\thttps://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
+	fmt.Fprintln(w, "Mythic Backend Server\thttp://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("MYTHIC_SERVER_PORT")))
+	fmt.Fprintln(w, "Hasura GraphQL Console\thttp://" + mythicEnv.GetString("HASURA_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("HASURA_PORT")))
+	fmt.Fprintln(w, "Internal Documentation\thttp://" + mythicEnv.GetString("DOCUMENTATION_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("DOCUMENTATION_PORT")) + "\n")
+	w.Flush()
 	for i, _ := range(count){
 		fmt.Printf("[*] Attempting to connect to Mythic UI, attempt %d/%d\n", i + 1, maxCount)
 		resp, err := http.Get("https://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
@@ -1228,10 +1236,10 @@ func testMythicConnection(){
 		}else{
 			defer resp.Body.Close()
 			if resp.StatusCode == 200{
-				fmt.Printf("[+] Successfully connected to Mythic\n")
+				fmt.Printf("[+] Successfully connected to Mythic at https://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")) + "\n")
 				return
 			}else if resp.StatusCode == 502 || resp.StatusCode == 504{
-				fmt.Printf("[*] Nginx is up, but waiting for Mythic Server, retrying connection in %ds\n", sleepTime)
+				fmt.Printf("[-] Nginx is up, but waiting for Mythic Server, retrying connection in %ds\n", sleepTime)
 			}else {
 				fmt.Printf("[-] Connection failed with HTTP Status Code %d, retrying in %ds\n", resp.StatusCode, sleepTime)
 			}
@@ -1242,6 +1250,8 @@ func testMythicConnection(){
 	fmt.Printf("    This could be due to limited resources on the host (recommended at least 2CPU and 4GB RAM)\n")
 	fmt.Printf("    If there is an issue with Mythic server, use 'mythic-cli logs mythic_server' to view potential errors\n")
 	status()
+	fmt.Printf("[*] Fetching logs from mythic_server now:")
+	logs("mythic_server")
 	os.Exit(1)
 }
 func uninstallService(services []string){
