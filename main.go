@@ -3,35 +3,36 @@
 package main
 
 import (
-    "fmt"
-    "os"
-    "github.com/spf13/viper"
-    "sort"
-    "log"
-    "crypto/rand"
-    "strings"
-    "math/big"
-    "github.com/docker/docker/client"
-    "github.com/docker/docker/api/types"
-    "context"
-    "encoding/binary"
-    "os/exec"
-    "path/filepath"
-    "bufio"
-    "io"
-    "io/ioutil"
-    "path"
-    "text/tabwriter"
-    "net"
-    "strconv"
-    "crypto/ecdsa"
+	"bufio"
+	"context"
+	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
-	"time"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"math/big"
+	"net"
 	"net/http"
-	"crypto/tls"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"text/tabwriter"
+	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
+	"github.com/spf13/viper"
 )
 
 var mythicServices = []string{"mythic_postgres", "mythic_react", "mythic_server", "mythic_redis", "mythic_nginx", "mythic_rabbitmq", "mythic_graphql", "mythic_documentation"}
@@ -46,7 +47,7 @@ func stringInSlice(value string, list []string) bool {
 	}
 	return false
 }
-func removeExclusionsFromSlice(group string, suppliedList[]string) []string {
+func removeExclusionsFromSlice(group string, suppliedList []string) []string {
 	// use the EXCLUDED_C2_PROFILES and EXCLUDED_PAYLOAD_TYPES variables to limit what we start
 	var exclusion_list []string
 	if group == "c2" {
@@ -64,153 +65,153 @@ func removeExclusionsFromSlice(group string, suppliedList[]string) []string {
 	}
 	return final_list
 }
-func displayHelp(){
-    fmt.Println("mythic-cli usage ( v", mythicCliVersion, "):")
-    fmt.Println("  help")
-    fmt.Println("  mythic {start|stop} [service name...]")
-    fmt.Println("  c2 {start|stop|add|remove|list} [c2profile ...]")
-    fmt.Println("      The add/remove subcommands adjust the docker-compose file, not manipulate files on disk")
-    fmt.Println("        to manipulate files on disk, use 'install' and 'uninstall' commands")
-    fmt.Println("  payload {start|stop|add|remove|list} [payloadtype ...]")
-    fmt.Println("      The add/remove subcommands adjust the docker-compose file, not manipulate files on disk")
-    fmt.Println("        to manipulate files on disk, use 'install' and 'uninstall' commands")
-    fmt.Println("  config")
-    fmt.Println("      *no parameters will dump the entire config*")
-    fmt.Println("      get [varname ...]")
-    fmt.Println("      set <var name> <var value>")
-    fmt.Println("  database reset")
-    fmt.Println("  install ")
-    fmt.Println("      github <url> [branch name] [-f]")
-    fmt.Println("      folder <path to folder> [-f]")
-    fmt.Println("      -f forces the removal of the currently installed version and overwrites with the new, otherwise will prompt you")
-    fmt.Println("      * this command will manipulate files on disk and update docker-compose")
-    fmt.Println("  uninstall {name}")
-    fmt.Println("      (this command removes the payload or c2 profile from disk and updates docker-compose)")
-    fmt.Println("  status")
-    fmt.Println("  logs <container name>")
-    fmt.Println("  version")
+func displayHelp() {
+	fmt.Println("mythic-cli usage ( v", mythicCliVersion, "):")
+	fmt.Println("  help")
+	fmt.Println("  mythic {start|stop} [service name...]")
+	fmt.Println("  c2 {start|stop|add|remove|list} [c2profile ...]")
+	fmt.Println("      The add/remove subcommands adjust the docker-compose file, not manipulate files on disk")
+	fmt.Println("        to manipulate files on disk, use 'install' and 'uninstall' commands")
+	fmt.Println("  payload {start|stop|add|remove|list} [payloadtype ...]")
+	fmt.Println("      The add/remove subcommands adjust the docker-compose file, not manipulate files on disk")
+	fmt.Println("        to manipulate files on disk, use 'install' and 'uninstall' commands")
+	fmt.Println("  config")
+	fmt.Println("      *no parameters will dump the entire config*")
+	fmt.Println("      get [varname ...]")
+	fmt.Println("      set <var name> <var value>")
+	fmt.Println("  database reset")
+	fmt.Println("  install ")
+	fmt.Println("      github <url> [branch name] [-f]")
+	fmt.Println("      folder <path to folder> [-f]")
+	fmt.Println("      -f forces the removal of the currently installed version and overwrites with the new, otherwise will prompt you")
+	fmt.Println("      * this command will manipulate files on disk and update docker-compose")
+	fmt.Println("  uninstall {name}")
+	fmt.Println("      (this command removes the payload or c2 profile from disk and updates docker-compose)")
+	fmt.Println("  status")
+	fmt.Println("  logs <container name>")
+	fmt.Println("  version")
 }
-func generateRandomPassword(pw_length int) string{
-    chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-    var b strings.Builder
-    for i := 0; i < pw_length; i++ {
-    	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-    	if err != nil {
-    		log.Fatalf("[-] Failed to generate random number for password generation\n")
-    	}
-        b.WriteRune(chars[nBig.Int64()])
-    }
-    return b.String() 
+func generateRandomPassword(pw_length int) string {
+	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+	var b strings.Builder
+	for i := 0; i < pw_length; i++ {
+		nBig, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			log.Fatalf("[-] Failed to generate random number for password generation\n")
+		}
+		b.WriteRune(chars[nBig.Int64()])
+	}
+	return b.String()
 }
-func setMythicConfigDefaultValues(){
-    // nginx configuration
-    mythicEnv.SetDefault("nginx_port", 7443)
-    // mythic server configuration
-    mythicEnv.SetDefault("documentation_host", "127.0.0.1")
-    mythicEnv.SetDefault("documentation_port", 8090)
-    mythicEnv.SetDefault("mythic_debug", false)
-    mythicEnv.SetDefault("mythic_server_port", 17443)
-    mythicEnv.SetDefault("mythic_server_host", "127.0.0.1")
-    // postgres configuration
-    mythicEnv.SetDefault("postgres_host", "127.0.0.1")
-    mythicEnv.SetDefault("postgres_port", 5432)
-    mythicEnv.SetDefault("postgres_db", "mythic_db")
-    mythicEnv.SetDefault("postgres_user", "mythic_user")
-    mythicEnv.SetDefault("postgres_password", generateRandomPassword(30))
-    // rabbitmq configuration
-    mythicEnv.SetDefault("rabbitmq_host", "127.0.0.1")
-    mythicEnv.SetDefault("rabbitmq_port", 5672)
-    mythicEnv.SetDefault("rabbitmq_user", "mythic_user")
-    mythicEnv.SetDefault("rabbitmq_password", generateRandomPassword(30))
-    mythicEnv.SetDefault("rabbitmq_vhost", "mythic_vhost")
-    // jwt configuration
-    mythicEnv.SetDefault("jwt_secret", generateRandomPassword(30))
-    // hasura configuration
-    mythicEnv.SetDefault("hasura_host", "127.0.0.1")
-    mythicEnv.SetDefault("hasura_port", 8080)
-    mythicEnv.SetDefault("hasura_secret", generateRandomPassword(30))
-    // redis configuration
-    mythicEnv.SetDefault("redis_port", 6379)
-    // docker-compose configuration
-    mythicEnv.SetDefault("COMPOSE_PROJECT_NAME", "mythic")
-    // Mythic instance configuration
-    mythicEnv.SetDefault("mythic_admin_user", "mythic_admin")
-    mythicEnv.SetDefault("mythic_admin_password", generateRandomPassword(30))
-    mythicEnv.SetDefault("default_operation_name", "Operation Chimera")
-    mythicEnv.SetDefault("allowed_ip_blocks", "0.0.0.0/0")
-    mythicEnv.SetDefault("server_header", "nginx 1.2")
-    mythicEnv.SetDefault("web_log_size", 1024000)
-    mythicEnv.SetDefault("web_keep_logs", false)
-    mythicEnv.SetDefault("siem_log_name", "")
-    mythicEnv.SetDefault("excluded_payload_types", "")
-    mythicEnv.SetDefault("excluded_c2_profiles", "")
+func setMythicConfigDefaultValues() {
+	// nginx configuration
+	mythicEnv.SetDefault("nginx_port", 7443)
+	// mythic server configuration
+	mythicEnv.SetDefault("documentation_host", "127.0.0.1")
+	mythicEnv.SetDefault("documentation_port", 8090)
+	mythicEnv.SetDefault("mythic_debug", false)
+	mythicEnv.SetDefault("mythic_server_port", 17443)
+	mythicEnv.SetDefault("mythic_server_host", "127.0.0.1")
+	// postgres configuration
+	mythicEnv.SetDefault("postgres_host", "127.0.0.1")
+	mythicEnv.SetDefault("postgres_port", 5432)
+	mythicEnv.SetDefault("postgres_db", "mythic_db")
+	mythicEnv.SetDefault("postgres_user", "mythic_user")
+	mythicEnv.SetDefault("postgres_password", generateRandomPassword(30))
+	// rabbitmq configuration
+	mythicEnv.SetDefault("rabbitmq_host", "127.0.0.1")
+	mythicEnv.SetDefault("rabbitmq_port", 5672)
+	mythicEnv.SetDefault("rabbitmq_user", "mythic_user")
+	mythicEnv.SetDefault("rabbitmq_password", generateRandomPassword(30))
+	mythicEnv.SetDefault("rabbitmq_vhost", "mythic_vhost")
+	// jwt configuration
+	mythicEnv.SetDefault("jwt_secret", generateRandomPassword(30))
+	// hasura configuration
+	mythicEnv.SetDefault("hasura_host", "127.0.0.1")
+	mythicEnv.SetDefault("hasura_port", 8080)
+	mythicEnv.SetDefault("hasura_secret", generateRandomPassword(30))
+	// redis configuration
+	mythicEnv.SetDefault("redis_port", 6379)
+	// docker-compose configuration
+	mythicEnv.SetDefault("COMPOSE_PROJECT_NAME", "mythic")
+	// Mythic instance configuration
+	mythicEnv.SetDefault("mythic_admin_user", "mythic_admin")
+	mythicEnv.SetDefault("mythic_admin_password", generateRandomPassword(30))
+	mythicEnv.SetDefault("default_operation_name", "Operation Chimera")
+	mythicEnv.SetDefault("allowed_ip_blocks", "0.0.0.0/0")
+	mythicEnv.SetDefault("server_header", "nginx 1.2")
+	mythicEnv.SetDefault("web_log_size", 1024000)
+	mythicEnv.SetDefault("web_keep_logs", false)
+	mythicEnv.SetDefault("siem_log_name", "")
+	mythicEnv.SetDefault("excluded_payload_types", "")
+	mythicEnv.SetDefault("excluded_c2_profiles", "")
 }
-func parseMythicEnvironmentVariables(){
+func parseMythicEnvironmentVariables() {
 	setMythicConfigDefaultValues()
-    mythicEnv.SetConfigName(".env")
-    mythicEnv.SetConfigType("env")
-    mythicEnv.AddConfigPath(getCwdFromExe())
-    mythicEnv.AutomaticEnv()
-    if !fileExists(filepath.Join(getCwdFromExe(), ".env")) {
-    	_, err := os.Create(filepath.Join(getCwdFromExe(), ".env"))
-    	if err != nil {
-    		log.Fatalf("[-] .env doesn't exist and couldn't be created")
-    	}
-    }
-    if err := mythicEnv.ReadInConfig(); err != nil {
-        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-            log.Fatalf("[-] Error while reading in .env file: %s", err)
-        } else {
-            log.Fatalf("[-]Error while parsing .env file: %s", err)
-        }
-    }
+	mythicEnv.SetConfigName(".env")
+	mythicEnv.SetConfigType("env")
+	mythicEnv.AddConfigPath(getCwdFromExe())
+	mythicEnv.AutomaticEnv()
+	if !fileExists(filepath.Join(getCwdFromExe(), ".env")) {
+		_, err := os.Create(filepath.Join(getCwdFromExe(), ".env"))
+		if err != nil {
+			log.Fatalf("[-] .env doesn't exist and couldn't be created")
+		}
+	}
+	if err := mythicEnv.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			log.Fatalf("[-] Error while reading in .env file: %s", err)
+		} else {
+			log.Fatalf("[-]Error while parsing .env file: %s", err)
+		}
+	}
 }
-func env(args []string){
-    if len(args) == 0 {
-        // we want to just get all of the environment variables that mythic uses
-        c := mythicEnv.AllSettings()
-        // to make it easier to read and look at, get all the keys, sort them, and display variables in order
-        keys := make([]string, 0, len(c))
-        for k := range c {
-        	keys = append(keys, k)
-        }
-        sort.Strings(keys)
-        for _, key := range keys {
-        	fmt.Println(strings.ToUpper(key), "=", mythicEnv.Get(key))
-        }
-        return
-    }
-    switch args[0] {
-    case "get":
-        if len(args) == 1 {
-            log.Fatal("[-] Must specify name of variable to get")
-        }
-        for i := 1; i < len(args[1:]) + 1; i++ {
-            val := mythicEnv.Get(args[i])
-            fmt.Println(strings.ToUpper(args[i]), "=", val)
-        }
-    case "set":
-		if len(args) != 3{
+func env(args []string) {
+	if len(args) == 0 {
+		// we want to just get all of the environment variables that mythic uses
+		c := mythicEnv.AllSettings()
+		// to make it easier to read and look at, get all the keys, sort them, and display variables in order
+		keys := make([]string, 0, len(c))
+		for k := range c {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			fmt.Println(strings.ToUpper(key), "=", mythicEnv.Get(key))
+		}
+		return
+	}
+	switch args[0] {
+	case "get":
+		if len(args) == 1 {
+			log.Fatal("[-] Must specify name of variable to get")
+		}
+		for i := 1; i < len(args[1:])+1; i++ {
+			val := mythicEnv.Get(args[i])
+			fmt.Println(strings.ToUpper(args[i]), "=", val)
+		}
+	case "set":
+		if len(args) != 3 {
 			log.Fatalf("[-] Must supply config name and config value")
 		}
 		if strings.ToLower(args[2]) == "true" {
 			mythicEnv.Set(args[1], true)
-		}else if strings.ToLower(args[2]) == "false" {
+		} else if strings.ToLower(args[2]) == "false" {
 			mythicEnv.Set(args[1], false)
-		}else{
+		} else {
 			mythicEnv.Set(args[1], args[2])
 		}
 		mythicEnv.Get(args[1])
 		err := mythicEnv.WriteConfig()
 		if err != nil {
 			fmt.Printf("[-] Failed to write config: %v\n", err)
-		}else{
+		} else {
 			fmt.Printf("[+] Successfully updated configuration in .env\n")
 		}
-		
-    default:
-        fmt.Println("[-] Unknown env subcommand:", args[0])
-    }
+
+	default:
+		fmt.Println("[-] Unknown env subcommand:", args[0])
+	}
 }
 func isServiceRunning(service string) bool {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -232,7 +233,7 @@ func isServiceRunning(service string) bool {
 	}
 	return false
 }
-func status(){
+func status() {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("[-] Failed to get client in status check: %v", err)
@@ -263,7 +264,7 @@ func status(){
 			}
 			if stringInSlice(container.Image, mythicServices) {
 				mythic_services = append(mythic_services, info)
-			}else{
+			} else {
 				payloadAbsPath, err := filepath.Abs(filepath.Join(getCwdFromExe(), "Payload_Types"))
 				if err != nil {
 					fmt.Printf("[-] failed to get the absolute path to the Payload_Types folder")
@@ -301,11 +302,11 @@ func status(){
 			fmt.Fprintln(w, line)
 		}
 		w.Flush()
-	} else{
+	} else {
 		fmt.Println("There are no containers running")
 	}
 }
-func logs(containerName string){
+func logs(containerName string) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("Failed to get client in logs: %v", err)
@@ -320,7 +321,7 @@ func logs(containerName string){
 				reader, err := cli.ContainerLogs(context.Background(), container.ID, types.ContainerLogsOptions{
 					ShowStdout: true,
 					ShowStderr: true,
-					Tail: "500",
+					Tail:       "500",
 				})
 				if err != nil {
 					log.Fatalf("Failed to get container logs: %v", err)
@@ -328,16 +329,16 @@ func logs(containerName string){
 				defer reader.Close()
 				// awesome post about the leading 8 payload/header bytes: https://medium.com/@dhanushgopinath/reading-docker-container-logs-with-golang-docker-engine-api-702233fac044
 				p := make([]byte, 8)
-				_, err = reader.Read(p);
+				_, err = reader.Read(p)
 				for err == nil {
 					content := make([]byte, binary.BigEndian.Uint32(p[4:]))
 					reader.Read(content)
 					fmt.Printf("%s", content)
-					_, err = reader.Read(p);
+					_, err = reader.Read(p)
 				}
 			}
 		}
-	} else{
+	} else {
 		fmt.Println("Failed to find that container")
 	}
 }
@@ -349,12 +350,13 @@ func getMythicEnvList() []string {
 		if val != "" {
 			// prevent trying to append arrays or dictionaries to our environment list
 			//fmt.Println(strings.ToUpper(key), val)
-			envList = append(envList, strings.ToUpper(key) + "=" + val)
+			envList = append(envList, strings.ToUpper(key)+"="+val)
 		}
 	}
+	envList = append(envList, os.Environ()...)
 	return envList
 }
-func runDockerCompose(args []string) error{
+func runDockerCompose(args []string) error {
 	path, err := exec.LookPath("docker-compose")
 	if err != nil {
 		log.Fatalf("[-] docker-compose is not installed or not available in the current PATH variable")
@@ -376,18 +378,18 @@ func runDockerCompose(args []string) error{
 	if err != nil {
 		log.Fatalf("[-] Failed to get stderr pipe for running docker-compose")
 	}
-	
+
 	stdoutScanner := bufio.NewScanner(stdout)
 	stderrScanner := bufio.NewScanner(stderr)
 	go func() {
 		for stdoutScanner.Scan() {
-            fmt.Printf("%s\n", stdoutScanner.Text())
-        }
+			fmt.Printf("%s\n", stdoutScanner.Text())
+		}
 	}()
 	go func() {
 		for stderrScanner.Scan() {
-            fmt.Printf("%s\n", stderrScanner.Text())
-        }
+			fmt.Printf("%s\n", stderrScanner.Text())
+		}
 	}()
 	err = command.Start()
 	if err != nil {
@@ -407,7 +409,7 @@ func getCwdFromExe() string {
 	}
 	return filepath.Dir(exe)
 }
-func runGitClone(args []string) error{
+func runGitClone(args []string) error {
 	path, err := exec.LookPath("git")
 	if err != nil {
 		fmt.Printf("[-] git is not installed or not available in the current PATH variable")
@@ -435,18 +437,18 @@ func runGitClone(args []string) error{
 		fmt.Printf("[-] Failed to get stderr pipe for running git")
 		return err
 	}
-	
+
 	stdoutScanner := bufio.NewScanner(stdout)
 	stderrScanner := bufio.NewScanner(stderr)
 	go func() {
 		for stdoutScanner.Scan() {
-            fmt.Printf("%s\n", stdoutScanner.Text())
-        }
+			fmt.Printf("%s\n", stdoutScanner.Text())
+		}
 	}()
 	go func() {
 		for stderrScanner.Scan() {
-            fmt.Printf("%s\n", stderrScanner.Text())
-        }
+			fmt.Printf("%s\n", stderrScanner.Text())
+		}
 	}()
 	err = command.Start()
 	if err != nil {
@@ -466,14 +468,14 @@ func getAllGroupNames(group string) ([]string, error) {
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(getCwdFromExe())
 	if err := viper.ReadInConfig(); err != nil {
-        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-            fmt.Printf("[-] Error while reading in docker-compose file: %s", err)
-            return []string{}, err
-        } else {
-            fmt.Printf("[-] Error while parsing docker-compose file: %s", err)
-            return []string{}, err
-        }
-    }
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Printf("[-] Error while reading in docker-compose file: %s", err)
+			return []string{}, err
+		} else {
+			fmt.Printf("[-] Error while parsing docker-compose file: %s", err)
+			return []string{}, err
+		}
+	}
 	servicesSub := viper.Sub("services")
 	services := servicesSub.AllSettings()
 	var absPath string
@@ -484,7 +486,7 @@ func getAllGroupNames(group string) ([]string, error) {
 			fmt.Printf("[-] failed to get the absolute path to the C2_Profiles folder")
 			return []string{}, err
 		}
-	}else if group == "payload" {
+	} else if group == "payload" {
 		absPath, err = filepath.Abs(filepath.Join(getCwdFromExe(), "Payload_Types"))
 		if err != nil {
 			fmt.Printf("[-] failed to get the absolute path to the C2_Profiles folder")
@@ -506,20 +508,20 @@ func getAllGroupNames(group string) ([]string, error) {
 	}
 	return containerList, nil
 }
-func startStop(action string, group string, containerNameOriginals []string) error{
+func startStop(action string, group string, containerNameOriginals []string) error {
 	// group is ["c2", "payload", "mythic"]
 	// contianerName is a specific container or empty for all within a group
 	containerNames := make([]string, 0)
 	for _, val := range containerNameOriginals {
 		containerNames = append(containerNames, strings.ToLower(val))
 	}
-    switch group {
-    case "mythic":
-    	// we're looking at the main mythic services here
+	switch group {
+	case "mythic":
+		// we're looking at the main mythic services here
 		if action == "start" {
 			mythicEnv.WriteConfig()
 			fmt.Printf("[+] Successfully updated configuration in .env\n")
-			
+
 			if len(containerNames) > 0 {
 				runDockerCompose(append([]string{"up", "--build", "-d"}, containerNames...))
 			} else {
@@ -546,7 +548,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 				runDockerCompose(append([]string{"up", "--build", "-d"}, finalList...))
 				testMythicConnection()
 			}
-			
+
 			status()
 		}
 		if action == "stop" {
@@ -580,7 +582,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 			} else if action == "stop" && len(containerList) > 0 {
 				runDockerCompose(append([]string{"rm", "-s", "-v", "-f"}, containerList...))
 			}
-		}else{
+		} else {
 			runDockerCompose(append([]string{"rm", "-s", "-v", "-f"}, containerNames...))
 			if action == "start" && len(containerNames) > 0 {
 				runDockerCompose(append([]string{"up", "--build", "-d"}, containerNames...))
@@ -609,7 +611,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 			} else if action == "stop" && len(containerList) > 0 {
 				runDockerCompose(append([]string{"rm", "-s", "-v", "-f"}, containerList...))
 			}
-		}else{
+		} else {
 			runDockerCompose(append([]string{"rm", "-s", "-v", "-f"}, containerNames...))
 			if action == "start" && len(containerNames) > 0 {
 				runDockerCompose(append([]string{"up", "--build", "-d"}, containerNames...))
@@ -618,29 +620,32 @@ func startStop(action string, group string, containerNameOriginals []string) err
 	default:
 		fmt.Printf("[-] Unknown group for starting container\n")
 		return nil
-    }
-    return nil
+	}
+	return nil
 }
+
 // https://golangcode.com/check-if-a-file-exists/
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
-		if os.IsNotExist(err){
-			return false;
+		if os.IsNotExist(err) {
+			return false
 		}
 	}
 	return !info.IsDir()
 }
+
 // https://golangcode.com/check-if-a-file-exists/
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
-		if os.IsNotExist(err){
-			return false;
+		if os.IsNotExist(err) {
+			return false
 		}
 	}
 	return info.IsDir()
 }
+
 // https://blog.depa.do/post/copy-files-and-directories-in-go
 func copyFile(src, dst string) error {
 	var err error
@@ -666,6 +671,7 @@ func copyFile(src, dst string) error {
 	}
 	return os.Chmod(dst, srcinfo.Mode())
 }
+
 // https://blog.depa.do/post/copy-files-and-directories-in-go
 func copyDir(src string, dst string) error {
 	var err error
@@ -699,6 +705,7 @@ func copyDir(src string, dst string) error {
 	}
 	return nil
 }
+
 // https://gist.github.com/r0l1/3dcbb0c8f6cfe9c66ab8008f55f8f28b
 func askConfirm(prompt string) bool {
 	reader := bufio.NewReader(os.Stdin)
@@ -712,7 +719,7 @@ func askConfirm(prompt string) bool {
 		input = strings.ToLower(strings.TrimSpace(input))
 		if input == "y" || input == "yes" {
 			return true
-		}else if input == "n" || input == "no" {
+		} else if input == "n" || input == "no" {
 			return false
 		}
 	}
@@ -723,82 +730,82 @@ func addRemoveDockerComposeEntries(action string, group string, names []string, 
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(getCwdFromExe())
 	if err := viper.ReadInConfig(); err != nil {
-        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-            log.Fatalf("[-] Error while reading in docker-compose file: %s", err)
-        } else {
-            log.Fatalf("[-] Error while parsing docker-compose file: %s", err)
-        }
-    }
-    for _, payload := range names {
-    	if action == "add" {
-    		var absPath string
-    		var err error
-    		if group == "payload" {
-	    		absPath, err = filepath.Abs(filepath.Join(getCwdFromExe(), "Payload_Types", payload))
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			log.Fatalf("[-] Error while reading in docker-compose file: %s", err)
+		} else {
+			log.Fatalf("[-] Error while parsing docker-compose file: %s", err)
+		}
+	}
+	for _, payload := range names {
+		if action == "add" {
+			var absPath string
+			var err error
+			if group == "payload" {
+				absPath, err = filepath.Abs(filepath.Join(getCwdFromExe(), "Payload_Types", payload))
 				if err != nil {
 					fmt.Printf("[-] Failed to get the absolute path to the Payload_Types folder, does the agent folder exist?")
 					fmt.Printf("[*] If the payload doesn't exist, you might need to install with 'mythic-cli install'")
 					os.Exit(1)
 				}
-	    	} else if group == "c2" {
-	    		absPath, err = filepath.Abs(filepath.Join(getCwdFromExe(), "C2_Profiles", payload))
+			} else if group == "c2" {
+				absPath, err = filepath.Abs(filepath.Join(getCwdFromExe(), "C2_Profiles", payload))
 				if err != nil {
 					fmt.Printf("[-] Failed to get the absolute path to the C2_Profiles folder, does the c2 profile folder exist?")
 					fmt.Printf("[*] If the profile doesn't exist on disk, you might need to install with 'mythic-cli install'")
 					os.Exit(1)
 				}
-	    	}
-	    	if !dirExists(absPath) {
-	    		fmt.Printf("[-] %s does not exist, not adding to Mythic\n", absPath)
-	    		os.Exit(1)
-	    	}
-	    	pStruct := map[string]interface{}{
-	    		"build": absPath,
-	    		"network_mode": "host",
-	    		"labels": map[string]string{
-	    			"name": payload,
-	    		},
-	    		"hostname": payload,
-	    		"logging": map[string]interface{}{
-	    			"driver": "json-file",
-	    			"options": map[string]string{
-	    				"max-file": "1",
-	    				"max-size": "10m",
-	    			},
-	    		},
-	    		"restart": "always",
-	    		"volumes": []string{
-	    			absPath + ":/Mythic/",
-	    		},
-	    		"environment": []string{
-	    			"MYTHIC_ADDRESS=http://${MYTHIC_SERVER_HOST}:${MYTHIC_SERVER_PORT}/api/v1.4/agent_message",
+			}
+			if !dirExists(absPath) {
+				fmt.Printf("[-] %s does not exist, not adding to Mythic\n", absPath)
+				os.Exit(1)
+			}
+			pStruct := map[string]interface{}{
+				"build":        absPath,
+				"network_mode": "host",
+				"labels": map[string]string{
+					"name": payload,
+				},
+				"hostname": payload,
+				"logging": map[string]interface{}{
+					"driver": "json-file",
+					"options": map[string]string{
+						"max-file": "1",
+						"max-size": "10m",
+					},
+				},
+				"restart": "always",
+				"volumes": []string{
+					absPath + ":/Mythic/",
+				},
+				"environment": []string{
+					"MYTHIC_ADDRESS=http://${MYTHIC_SERVER_HOST}:${MYTHIC_SERVER_PORT}/api/v1.4/agent_message",
 					"MYTHIC_WEBSOCKET=ws://${MYTHIC_SERVER_HOST}:${MYTHIC_SERVER_PORT}/ws/agent_message",
 					"MYTHIC_USERNAME=${RABBITMQ_USER}",
 					"MYTHIC_PASSWORD=${RABBITMQ_PASSWORD}",
 					"MYTHIC_VIRTUAL_HOST=${RABBITMQ_VHOST}",
 					"MYTHIC_HOST=${RABBITMQ_HOST}",
-	    		},
-	    	}
-	    	for key, element := range additionalConfigs {
-	    		pStruct[key] = element
-	    	}
-			viper.Set("services." + strings.ToLower(payload), pStruct)
+				},
+			}
+			for key, element := range additionalConfigs {
+				pStruct[key] = element
+			}
+			viper.Set("services."+strings.ToLower(payload), pStruct)
 			viper.WriteConfig()
 			fmt.Println("[+] Successfully updated docker-compose.yml")
-			if isServiceRunning("mythic_server"){
+			if isServiceRunning("mythic_server") {
 				startStop("start", group, []string{strings.ToLower(payload)})
 			}
-    	}else if action == "remove" {
+		} else if action == "remove" {
 			// remove all entries from yaml file that are in `names`
 			for _, payload := range names {
 				if !stringInSlice(payload, mythicServices) {
-					if isServiceRunning(payload){
+					if isServiceRunning(payload) {
 						startStop("stop", group, []string{strings.ToLower(payload)})
 					}
 					delete(viper.Get("services").(map[string]interface{}), strings.ToLower(payload))
 					if !isUninstall {
 						fmt.Printf("[+] Removed %s from docker-compose, but files are still on disk. \nTo remove from disk use 'mythic-cli uninstall %s'\n", strings.ToLower(payload), strings.ToLower(payload))
-					}else{
+					} else {
 						fmt.Printf("[+] Removed %s from docker-compose\n", strings.ToLower(payload))
 					}
 				}
@@ -806,7 +813,7 @@ func addRemoveDockerComposeEntries(action string, group string, names []string, 
 			viper.WriteConfig()
 			fmt.Println("[+] Successfully updated docker-compose.yml")
 		}
-    }
+	}
 	return nil
 }
 func installFolder(installPath string, args []string) error {
@@ -817,281 +824,281 @@ func installFolder(installPath string, args []string) error {
 			overWrite = true
 		}
 	}
-	if fileExists(filepath.Join(installPath, "config.json")){
+	if fileExists(filepath.Join(installPath, "config.json")) {
 		var config = viper.New()
 		config.SetConfigName("config")
-	    config.SetConfigType("json")
-	    fmt.Printf("[*] Parsing config.json\n")
-	    config.AddConfigPath(installPath)
-	    if err := config.ReadInConfig(); err != nil {
-	        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-	            fmt.Printf("[-] Error while reading in config file: %s", err)
-	            return err
-	        } else {
-	            fmt.Printf("[-] Error while parsing config file: %s", err)
-	            return err
-	        }
-	    }
-	    if !config.GetBool("exclude_payload_type") {
-	    	// handle the payload type copying here
-	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "Payload_Type"))
-	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of new Payload_Type folder: %v\n", err)
-	    		return err
-	    	}
-	    	for _, f := range files {
-	    		if f.IsDir() {
-	    			fmt.Printf("[*] Processing Payload Type %s\n", f.Name())
-	    			if dirExists(filepath.Join(workingPath, "Payload_Types", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " already exists. Replace current version? "){
-	    					fmt.Printf("[*] Stopping current container\n")
-	    					if isServiceRunning(strings.ToLower(f.Name())){
-	    						startStop("stop", "payload", []string{f.Name()})
-	    					}
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "Payload_Types", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next payload\n")
-    							continue
-	    					}else{
-	    						fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping Payload Type, %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new version of payload into place\n")
-	    			err = copyDir(filepath.Join(installPath, "Payload_Type", f.Name()), filepath.Join(workingPath, "Payload_Types", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy directory over: %v\n", err)
-	    				continue
-	    			}
-	    			// need to make sure the payload_service.sh file is executable
-	    			if fileExists(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "payload_service.sh")) {
-	    				err = os.Chmod(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "payload_service.sh"), 0777)
-	    				if err != nil {
-	    					fmt.Printf("[-] Failed to make payload_service.sh file executable\n")
-	    					continue
-	    				}
-	    			} else {
-	    				fmt.Printf("[-] failed to find payload_service file for %s\n", f.Name())
-	    				continue
-	    			}
-	    			//find ./Payload_Types/ -name "payload_service.sh" -exec chmod +x {} \;
-	    			// now add payload type to yaml config
-	    			fmt.Printf("[*] Adding payload into docker-compose\n")
-	    			if config.IsSet("docker-compose"){
-	    				addRemoveDockerComposeEntries("add", "payload", []string{f.Name()}, config.GetStringMap("docker-compose"), false)
-	    			}else{
-	    				addRemoveDockerComposeEntries("add", "payload", []string{f.Name()}, make(map[string]interface{}), false)
-	    			}
-    				
-	    		}
-	    	}
-	    	fmt.Printf("[+] Successfully installed agent\n")
-	    }else{
-	    	fmt.Printf("[*] Skipping over Payload Type\n")
-	    }
-	    if !config.GetBool("exclude_c2_profiles") {
-	    	// handle the c2 profile copying here
-	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "C2_Profiles"))
-	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of C2_Profiles folder from clone\n")
-	    		return err
-	    	}
-	    	for _, f := range files {
-	    		if f.IsDir() {
-	    			fmt.Printf("[*] Processing C2 Profile %s\n", f.Name())
-	    			if dirExists(filepath.Join(workingPath, "C2_Profiles", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " already exists. Replace current version? "){
-	    					fmt.Printf("[*] Stopping current container\n")
-	    					if isServiceRunning(strings.ToLower(f.Name())){
-	    						startStop("stop", "c2", []string{f.Name()})
-	    					}
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "C2_Profiles", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next c2 profile\n")
-    							continue
-	    					}else{
-	    						fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping C2 Profile, %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new version into place\n")
-	    			err = copyDir(filepath.Join(installPath, "C2_Profiles", f.Name()), filepath.Join(workingPath, "C2_Profiles", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy directory over\n")
-	    				continue
-	    			}
-	    			// need to make sure the c2_service.sh file is executable
-	    			if fileExists(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh")) {
-	    				err = os.Chmod(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh"), 0777)
-	    				if err != nil {
-	    					fmt.Printf("[-] Failed to make c2_service.sh file executable\n")
-	    					continue
-	    				}
-	    			} else {
-	    				fmt.Printf("[-] failed to find c2_service file for %s\n", f.Name())
-	    				continue
-	    			}
-	    			// now add payload type to yaml config
-	    			fmt.Printf("[*] Adding c2, %s, into docker-compose\n", f.Name())
-    				addRemoveDockerComposeEntries("add", "c2", []string{f.Name()},  make(map[string]interface{}), false)
-	    		}
-	    	}
-	    	fmt.Printf("[+] Successfully installed c2\n")
-	    }else{
-	    	fmt.Printf("[*] Skipping over C2 Profile\n")
-	    }
-	    if !config.GetBool("exclude_documentation_payload") {
-	    	// handle payload documentation copying here
-	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-payload"))
-	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone\n")
-	    		return err
-	    	}
-	    	for _, f := range files {
-	    		if f.IsDir() {
-	    			fmt.Printf("[*] Processing Documentation for %s\n", f.Name())
-	    			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " documentation already exists. Replace current version? "){
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next payload documentation\n")
-	    						continue
-	    					}else{
-	    						fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping documentation for , %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new documentation into place\n")
-	    			err = copyDir(filepath.Join(installPath, "documentation-payload", f.Name()), filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy directory over\n")
-	    				continue
-	    			}
-	    		}
-	    	}
-	    	fmt.Printf("[+] Successfully installed Payload documentation\n")
-	    }else{
-	    	fmt.Printf("[*] Skipping over Payload Documentation\n")
-	    }
-	    if !config.GetBool("exclude_documentation_c2") {
-	    	// handle the c2 documentation copying here
-	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-c2"))
-	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone")
-	    		return err
-	    	}
-	    	for _, f := range files {
-	    		if f.IsDir() {
-	    			fmt.Printf("[*] Processing Documentation for %s\n", f.Name())
-	    			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " documentation already exists. Replace current version? "){
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next c2 documentation\n")
-	    						continue
-	    					}else{
-	    						fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping documentation for %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new documentation version into place\n")
-	    			err = copyDir(filepath.Join(installPath, "documentation-c2", f.Name()), filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy directory over\n")
-	    				continue
-	    			}
-	    		}
-	    	}
-	    	fmt.Printf("[+] Successfully installed c2 documentation\n")
-	    }else{
-	    	fmt.Printf("[*] Skipping over C2 Documentation\n")
-	    }
-	    if !config.GetBool("exclude_agent_icons") {
-	    	// handle copying over the agent's svg icons
-	    	files, err := ioutil.ReadDir(filepath.Join(installPath, "agent_icons"))
-	    	if err != nil {
-	    		fmt.Printf("[-] Failed to list contents of agent_icons folder from clone: %v\n", err)
-	    		return err
-	    	}
-	    	for _, f := range files {
-	    		if !f.IsDir() && f.Name() != ".gitkeep" && f.Name() != ".keep" {
-	    			fmt.Printf("[*] Processing agent icon %s\n", f.Name())
-	    			if fileExists(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " agent icon already exists. Replace current version? "){
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next icon\n")
-	    						continue
-	    					}else{
-    							fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping agent icon for %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new icon version into place for old UI\n")
-	    			err = copyFile(filepath.Join(installPath, "agent_icons", f.Name()), filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy icon over: %v\n", err)
-	    				continue
-	    			}
-	    			if fileExists(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name())) {
-	    				if overWrite || askConfirm("[*] " + f.Name() + " agent icon already exists for new UI. Replace current version? "){
-	    					fmt.Printf("[*] Removing current version\n")
-	    					err = os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
-	    					if err != nil {
-	    						fmt.Printf("[-] Failed to remove current version: %v\n", err)
-	    						fmt.Printf("[-] Continuing to the next agent icon\n")
-	    						continue
-	    					}else{
-	    						fmt.Printf("[+] Successfully removed the current version\n")
-	    					}
-	    				}else{
-	    					fmt.Printf("[!] Skipping new UI agent icon for %s\n", f.Name())
-	    					continue
-	    				}
-	    			}
-	    			fmt.Printf("[*] Copying new version into place for new UI\n")
-	    			err = copyFile(filepath.Join(installPath, "agent_icons", f.Name()), filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
-	    			if err != nil {
-	    				fmt.Printf("[-] Failed to copy icon over: %v\n", err)
-	    				continue
-	    			}
-	    		}
-	    	}
-	    	fmt.Printf("[+] Successfully installed agent icons\n")
-	    }else{
-	    	fmt.Printf("[*] Skipping over Agent Icons\n")
-	    }
-	    if isServiceRunning("mythic_documentation"){
-	    	fmt.Printf("[*] Restarting mythic_documentation container to pull in changes\n")
-	    	startStop("stop", "mythic", []string{"mythic_documentation"})
-	    	startStop("start", "mythic", []string{"mythic_documentation"})
-	    }
-	}else{
+		config.SetConfigType("json")
+		fmt.Printf("[*] Parsing config.json\n")
+		config.AddConfigPath(installPath)
+		if err := config.ReadInConfig(); err != nil {
+			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+				fmt.Printf("[-] Error while reading in config file: %s", err)
+				return err
+			} else {
+				fmt.Printf("[-] Error while parsing config file: %s", err)
+				return err
+			}
+		}
+		if !config.GetBool("exclude_payload_type") {
+			// handle the payload type copying here
+			files, err := ioutil.ReadDir(filepath.Join(installPath, "Payload_Type"))
+			if err != nil {
+				fmt.Printf("[-] Failed to list contents of new Payload_Type folder: %v\n", err)
+				return err
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					fmt.Printf("[*] Processing Payload Type %s\n", f.Name())
+					if dirExists(filepath.Join(workingPath, "Payload_Types", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" already exists. Replace current version? ") {
+							fmt.Printf("[*] Stopping current container\n")
+							if isServiceRunning(strings.ToLower(f.Name())) {
+								startStop("stop", "payload", []string{f.Name()})
+							}
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "Payload_Types", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next payload\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping Payload Type, %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new version of payload into place\n")
+					err = copyDir(filepath.Join(installPath, "Payload_Type", f.Name()), filepath.Join(workingPath, "Payload_Types", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy directory over: %v\n", err)
+						continue
+					}
+					// need to make sure the payload_service.sh file is executable
+					if fileExists(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "payload_service.sh")) {
+						err = os.Chmod(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "payload_service.sh"), 0777)
+						if err != nil {
+							fmt.Printf("[-] Failed to make payload_service.sh file executable\n")
+							continue
+						}
+					} else {
+						fmt.Printf("[-] failed to find payload_service file for %s\n", f.Name())
+						continue
+					}
+					//find ./Payload_Types/ -name "payload_service.sh" -exec chmod +x {} \;
+					// now add payload type to yaml config
+					fmt.Printf("[*] Adding payload into docker-compose\n")
+					if config.IsSet("docker-compose") {
+						addRemoveDockerComposeEntries("add", "payload", []string{f.Name()}, config.GetStringMap("docker-compose"), false)
+					} else {
+						addRemoveDockerComposeEntries("add", "payload", []string{f.Name()}, make(map[string]interface{}), false)
+					}
+
+				}
+			}
+			fmt.Printf("[+] Successfully installed agent\n")
+		} else {
+			fmt.Printf("[*] Skipping over Payload Type\n")
+		}
+		if !config.GetBool("exclude_c2_profiles") {
+			// handle the c2 profile copying here
+			files, err := ioutil.ReadDir(filepath.Join(installPath, "C2_Profiles"))
+			if err != nil {
+				fmt.Printf("[-] Failed to list contents of C2_Profiles folder from clone\n")
+				return err
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					fmt.Printf("[*] Processing C2 Profile %s\n", f.Name())
+					if dirExists(filepath.Join(workingPath, "C2_Profiles", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" already exists. Replace current version? ") {
+							fmt.Printf("[*] Stopping current container\n")
+							if isServiceRunning(strings.ToLower(f.Name())) {
+								startStop("stop", "c2", []string{f.Name()})
+							}
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "C2_Profiles", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next c2 profile\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping C2 Profile, %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new version into place\n")
+					err = copyDir(filepath.Join(installPath, "C2_Profiles", f.Name()), filepath.Join(workingPath, "C2_Profiles", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy directory over\n")
+						continue
+					}
+					// need to make sure the c2_service.sh file is executable
+					if fileExists(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh")) {
+						err = os.Chmod(filepath.Join(workingPath, "C2_Profiles", f.Name(), "mythic", "c2_service.sh"), 0777)
+						if err != nil {
+							fmt.Printf("[-] Failed to make c2_service.sh file executable\n")
+							continue
+						}
+					} else {
+						fmt.Printf("[-] failed to find c2_service file for %s\n", f.Name())
+						continue
+					}
+					// now add payload type to yaml config
+					fmt.Printf("[*] Adding c2, %s, into docker-compose\n", f.Name())
+					addRemoveDockerComposeEntries("add", "c2", []string{f.Name()}, make(map[string]interface{}), false)
+				}
+			}
+			fmt.Printf("[+] Successfully installed c2\n")
+		} else {
+			fmt.Printf("[*] Skipping over C2 Profile\n")
+		}
+		if !config.GetBool("exclude_documentation_payload") {
+			// handle payload documentation copying here
+			files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-payload"))
+			if err != nil {
+				fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone\n")
+				return err
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					fmt.Printf("[*] Processing Documentation for %s\n", f.Name())
+					if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" documentation already exists. Replace current version? ") {
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next payload documentation\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping documentation for , %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new documentation into place\n")
+					err = copyDir(filepath.Join(installPath, "documentation-payload", f.Name()), filepath.Join(workingPath, "documentation-docker", "content", "Agents", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy directory over\n")
+						continue
+					}
+				}
+			}
+			fmt.Printf("[+] Successfully installed Payload documentation\n")
+		} else {
+			fmt.Printf("[*] Skipping over Payload Documentation\n")
+		}
+		if !config.GetBool("exclude_documentation_c2") {
+			// handle the c2 documentation copying here
+			files, err := ioutil.ReadDir(filepath.Join(installPath, "documentation-c2"))
+			if err != nil {
+				fmt.Printf("[-] Failed to list contents of documentation_payload folder from clone")
+				return err
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					fmt.Printf("[*] Processing Documentation for %s\n", f.Name())
+					if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" documentation already exists. Replace current version? ") {
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next c2 documentation\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping documentation for %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new documentation version into place\n")
+					err = copyDir(filepath.Join(installPath, "documentation-c2", f.Name()), filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy directory over\n")
+						continue
+					}
+				}
+			}
+			fmt.Printf("[+] Successfully installed c2 documentation\n")
+		} else {
+			fmt.Printf("[*] Skipping over C2 Documentation\n")
+		}
+		if !config.GetBool("exclude_agent_icons") {
+			// handle copying over the agent's svg icons
+			files, err := ioutil.ReadDir(filepath.Join(installPath, "agent_icons"))
+			if err != nil {
+				fmt.Printf("[-] Failed to list contents of agent_icons folder from clone: %v\n", err)
+				return err
+			}
+			for _, f := range files {
+				if !f.IsDir() && f.Name() != ".gitkeep" && f.Name() != ".keep" {
+					fmt.Printf("[*] Processing agent icon %s\n", f.Name())
+					if fileExists(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" agent icon already exists. Replace current version? ") {
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next icon\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping agent icon for %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new icon version into place for old UI\n")
+					err = copyFile(filepath.Join(installPath, "agent_icons", f.Name()), filepath.Join(workingPath, "mythic-docker", "app", "static", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy icon over: %v\n", err)
+						continue
+					}
+					if fileExists(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name())) {
+						if overWrite || askConfirm("[*] "+f.Name()+" agent icon already exists for new UI. Replace current version? ") {
+							fmt.Printf("[*] Removing current version\n")
+							err = os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
+							if err != nil {
+								fmt.Printf("[-] Failed to remove current version: %v\n", err)
+								fmt.Printf("[-] Continuing to the next agent icon\n")
+								continue
+							} else {
+								fmt.Printf("[+] Successfully removed the current version\n")
+							}
+						} else {
+							fmt.Printf("[!] Skipping new UI agent icon for %s\n", f.Name())
+							continue
+						}
+					}
+					fmt.Printf("[*] Copying new version into place for new UI\n")
+					err = copyFile(filepath.Join(installPath, "agent_icons", f.Name()), filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", f.Name()))
+					if err != nil {
+						fmt.Printf("[-] Failed to copy icon over: %v\n", err)
+						continue
+					}
+				}
+			}
+			fmt.Printf("[+] Successfully installed agent icons\n")
+		} else {
+			fmt.Printf("[*] Skipping over Agent Icons\n")
+		}
+		if isServiceRunning("mythic_documentation") {
+			fmt.Printf("[*] Restarting mythic_documentation container to pull in changes\n")
+			startStop("stop", "mythic", []string{"mythic_documentation"})
+			startStop("start", "mythic", []string{"mythic_documentation"})
+		}
+	} else {
 		log.Fatal("[-] Failed to find config.json in cloned down repo\n")
 	}
 	return nil
@@ -1116,7 +1123,7 @@ func installAgent(url string, args []string) {
 	if len(args) > 0 {
 		if args[0] == "-f" {
 			overWrite = true
-		}else{
+		} else {
 			branch = args[0]
 		}
 		if len(args) > 1 {
@@ -1128,7 +1135,7 @@ func installAgent(url string, args []string) {
 	fmt.Printf("[*] Cloning %s\n", url)
 	if branch == "" {
 		err = runGitClone([]string{"-c", "http.sslVerify=false", "clone", "--recurse-submodules", "--single-branch", url, filepath.Join(workingPath, "tmp")})
-	}else{
+	} else {
 		err = runGitClone([]string{"-c", "http.sslVerify=false", "clone", "--recurse-submodules", "--single-branch", "--branch", branch, url, filepath.Join(workingPath, "tmp")})
 	}
 	if err != nil {
@@ -1151,9 +1158,9 @@ func databaseReset() {
 	err := os.RemoveAll(filepath.Join(workingPath, "postgres-docker", "database"))
 	if err != nil {
 		fmt.Printf("[-] Failed to remove database files\n")
-	}else{
+	} else {
 		fmt.Printf("[+] Successfully reset datbase files\n")
-	}	
+	}
 }
 func rabbitmqReset() {
 	fmt.Printf("[*] Stopping Mythic\n")
@@ -1163,11 +1170,11 @@ func rabbitmqReset() {
 	err := os.RemoveAll(filepath.Join(workingPath, "rabbitmq-docker", "storage"))
 	if err != nil {
 		fmt.Printf("[-] Failed to reset rabbitmq files\n")
-	}else{
+	} else {
 		fmt.Printf("[+] Successfully reset rabbitmq files\n")
-	}	
+	}
 }
-func checkPorts() error{
+func checkPorts() error {
 	// go through the different services in mythicEnv and check to make sure their ports aren't already used by trying to open them
 	//MYTHIC_SERVER_HOST:MYTHIC_SERVER_PORT
 	//POSTGRES_HOST:POSTGRES_PORT
@@ -1178,14 +1185,14 @@ func checkPorts() error{
 	//0.0.0.0:NGINX_PORT
 	portChecks := map[string]string{
 		"MYTHIC_SERVER_HOST": "MYTHIC_SERVER_PORT",
-		"POSTGRES_HOST": "POSTGRES_PORT",
-		"HASURA_HOST": "HASURA_PORT",
-		"RABBITMQ_HOST": "RABBITMQ_PORT",
+		"POSTGRES_HOST":      "POSTGRES_PORT",
+		"HASURA_HOST":        "HASURA_PORT",
+		"RABBITMQ_HOST":      "RABBITMQ_PORT",
 		"DOCUMENTATION_HOST": "DOCUMENTATION_PORT",
 	}
 	for key, val := range portChecks {
 		if mythicEnv.GetString(key) == "127.0.0.1" {
-			p, err := net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt(val)))
+			p, err := net.Listen("tcp", ":"+strconv.Itoa(mythicEnv.GetInt(val)))
 			if err != nil {
 				fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt(val), err)
 				return err
@@ -1197,7 +1204,7 @@ func checkPorts() error{
 			}
 		}
 	}
-	p, err := net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt("REDIS_PORT")))
+	p, err := net.Listen("tcp", ":"+strconv.Itoa(mythicEnv.GetInt("REDIS_PORT")))
 	if err != nil {
 		fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt("REDIS_PORT"), err)
 		return err
@@ -1207,7 +1214,7 @@ func checkPorts() error{
 		fmt.Printf("[-] Failed to close connection: %v\n", err)
 		return err
 	}
-	p, err = net.Listen("tcp", ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
+	p, err = net.Listen("tcp", ":"+strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
 	if err != nil {
 		fmt.Printf("[-] Port %d appears to already be in use: %v\n", mythicEnv.GetInt("NGINX_PORT"), err)
 		return err
@@ -1215,7 +1222,7 @@ func checkPorts() error{
 	err = p.Close()
 	return nil
 }
-func testMythicConnection(){
+func testMythicConnection() {
 	maxCount := 10
 	sleepTime := int64(10)
 	count := make([]int, maxCount)
@@ -1223,24 +1230,24 @@ func testMythicConnection(){
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 2, '\t', 0)
 	fmt.Fprintln(w, "MYTHIC SERVICE\tWEB ADDRESS")
-	fmt.Fprintln(w, "Nginx (Mythic Web UI)\thttps://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
-	fmt.Fprintln(w, "Mythic Backend Server\thttp://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("MYTHIC_SERVER_PORT")))
-	fmt.Fprintln(w, "Hasura GraphQL Console\thttp://" + mythicEnv.GetString("HASURA_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("HASURA_PORT")))
-	fmt.Fprintln(w, "Internal Documentation\thttp://" + mythicEnv.GetString("DOCUMENTATION_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("DOCUMENTATION_PORT")) + "\n")
+	fmt.Fprintln(w, "Nginx (Mythic Web UI)\thttps://"+mythicEnv.GetString("MYTHIC_SERVER_HOST")+":"+strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
+	fmt.Fprintln(w, "Mythic Backend Server\thttp://"+mythicEnv.GetString("MYTHIC_SERVER_HOST")+":"+strconv.Itoa(mythicEnv.GetInt("MYTHIC_SERVER_PORT")))
+	fmt.Fprintln(w, "Hasura GraphQL Console\thttp://"+mythicEnv.GetString("HASURA_HOST")+":"+strconv.Itoa(mythicEnv.GetInt("HASURA_PORT")))
+	fmt.Fprintln(w, "Internal Documentation\thttp://"+mythicEnv.GetString("DOCUMENTATION_HOST")+":"+strconv.Itoa(mythicEnv.GetInt("DOCUMENTATION_PORT"))+"\n")
 	w.Flush()
-	for i, _ := range(count){
-		fmt.Printf("[*] Attempting to connect to Mythic UI, attempt %d/%d\n", i + 1, maxCount)
+	for i, _ := range count {
+		fmt.Printf("[*] Attempting to connect to Mythic UI, attempt %d/%d\n", i+1, maxCount)
 		resp, err := http.Get("https://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
 		if err != nil {
 			fmt.Printf("[-] Failed to make https connection: %v, retrying in %ds\n", err, sleepTime)
-		}else{
+		} else {
 			defer resp.Body.Close()
-			if resp.StatusCode == 200{
+			if resp.StatusCode == 200 {
 				fmt.Printf("[+] Successfully connected to Mythic at https://" + mythicEnv.GetString("MYTHIC_SERVER_HOST") + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")) + "\n")
 				return
-			}else if resp.StatusCode == 502 || resp.StatusCode == 504{
+			} else if resp.StatusCode == 502 || resp.StatusCode == 504 {
 				fmt.Printf("[-] Nginx is up, but waiting for Mythic Server, retrying connection in %ds\n", sleepTime)
-			}else {
+			} else {
 				fmt.Printf("[-] Connection failed with HTTP Status Code %d, retrying in %ds\n", resp.StatusCode, sleepTime)
 			}
 		}
@@ -1254,17 +1261,17 @@ func testMythicConnection(){
 	logs("mythic_server")
 	os.Exit(1)
 }
-func uninstallService(services []string){
+func uninstallService(services []string) {
 	workingPath := getCwdFromExe()
 	for _, service := range services {
-		if stringInSlice(strings.ToLower(service), mythicServices){
+		if stringInSlice(strings.ToLower(service), mythicServices) {
 			fmt.Printf("[-] Trying to uninstall Mythic services not allowed\n")
 			os.Exit(1)
 		}
 		found := false
-		if dirExists(filepath.Join(workingPath, "Payload_Types", service)){
+		if dirExists(filepath.Join(workingPath, "Payload_Types", service)) {
 			fmt.Printf("[*] Stopping and removing container\n")
-			if isServiceRunning(strings.ToLower(service)){
+			if isServiceRunning(strings.ToLower(service)) {
 				startStop("stop", "payload", []string{strings.ToLower(service)})
 			}
 			fmt.Printf("[*] Removing %s from docker-compose\n", strings.ToLower(service))
@@ -1275,7 +1282,7 @@ func uninstallService(services []string){
 			if err != nil {
 				fmt.Printf("[-] Failed to remove folder: %v\n", err)
 				os.Exit(1)
-			}else{
+			} else {
 				fmt.Printf("[+] Successfully removed %s's folder\n", service)
 			}
 			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "Agents", service)) {
@@ -1284,34 +1291,34 @@ func uninstallService(services []string){
 				if err != nil {
 					fmt.Printf("[-] Failed to remove Payload Type's Documentation: %v\n", err)
 					os.Exit(1)
-				}else{
+				} else {
 					fmt.Printf("[+] Successfully removed Payload Type's Documentation\n")
 				}
 			}
-			if fileExists(filepath.Join(workingPath, "mythic-docker", "app", "static", service + ".svg")) {
+			if fileExists(filepath.Join(workingPath, "mythic-docker", "app", "static", service+".svg")) {
 				found = true
-				err := os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", service + ".svg"))
+				err := os.RemoveAll(filepath.Join(workingPath, "mythic-docker", "app", "static", service+".svg"))
 				if err != nil {
 					fmt.Printf("[-] Failed to agent icon: %v\n", err)
 					os.Exit(1)
-				}else{
+				} else {
 					fmt.Printf("[+] Successfully removed %s's old UI icon\n", service)
 				}
 			}
-			if fileExists(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", service + ".svg")) {
+			if fileExists(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", service+".svg")) {
 				found = true
-				err := os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", service + ".svg"))
+				err := os.RemoveAll(filepath.Join(workingPath, "mythic-react-docker", "mythic", "public", service+".svg"))
 				if err != nil {
 					fmt.Printf("[-] Failed to agent icon: %v\n", err)
 					os.Exit(1)
-				}else{
+				} else {
 					fmt.Printf("[+] Successfully removed %s's new UI icon\n", service)
 				}
 			}
 		}
-		if dirExists(filepath.Join(workingPath, "C2_Profiles", service)){
+		if dirExists(filepath.Join(workingPath, "C2_Profiles", service)) {
 			fmt.Printf("[*] Stopping and removing container\n")
-			if isServiceRunning(strings.ToLower(service)){
+			if isServiceRunning(strings.ToLower(service)) {
 				startStop("stop", "c2", []string{strings.ToLower(service)})
 			}
 			fmt.Printf("[*] Removing %s from docker-compose\n", strings.ToLower(service))
@@ -1322,7 +1329,7 @@ func uninstallService(services []string){
 			if err != nil {
 				fmt.Printf("[-] Failed to remove folder: %v\n", err)
 				os.Exit(1)
-			}else{
+			} else {
 				fmt.Printf("[+] Successfully removed %s's folder\n", service)
 			}
 			if dirExists(filepath.Join(workingPath, "documentation-docker", "content", "C2 Profiles", service)) {
@@ -1331,20 +1338,20 @@ func uninstallService(services []string){
 				if err != nil {
 					fmt.Printf("[-] Failed to remove C2 Profile's Documentation: %v\n", err)
 					os.Exit(1)
-				}else{
+				} else {
 					fmt.Printf("[+] Successfully removed C2 Profile's Documentation\n")
 				}
 			}
 		}
 		if found {
 			fmt.Printf("[+] Successfully Uninstalled\n")
-			if isServiceRunning("mythic_documentation"){
+			if isServiceRunning("mythic_documentation") {
 				fmt.Printf("[*] Restarting mythic_documentation container to pull in changes\n")
 				startStop("stop", "mythic", []string{"mythic_documentation"})
 				startStop("start", "mythic", []string{"mythic_documentation"})
 			}
 			return
-		}else{
+		} else {
 			fmt.Printf("[-] Failed to find any Payload Type or C2 Profile folder by that name\n")
 			os.Exit(1)
 		}
@@ -1371,7 +1378,7 @@ func listGroupEntries(group string) {
 		for _, entry := range exclusion_list {
 			fmt.Printf("[-] %s\n", entry)
 		}
-		
+
 	}
 	// list out which group entities exist on disk, which could be different than what's in the docker-compose file
 	var targetFolder string
@@ -1396,6 +1403,7 @@ func listGroupEntries(group string) {
 	}
 	// list out which group entities are running
 }
+
 // code to generate self-signed certs pulled from github.com/kabukky/httpscerts
 // and from http://golang.org/src/crypto/tls/generate_cert.go.
 // only modifications were to use a specific elliptic curve cipher
@@ -1471,27 +1479,27 @@ func generateCerts() error {
 		fmt.Printf("[-] Unable to marshal ECDSA private key: %v\n", err)
 		return err
 	}
-	pem.Encode(keyOut, &pem.Block{Type:"EC PRIVATE KEY", Bytes: marshalKey})
+	pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: marshalKey})
 	keyOut.Close()
 	fmt.Printf("[+] Successfully generated new SSL certs\n")
 	return nil
 }
 func main() {
-    if len(os.Args) <= 1 {
-        displayHelp()
-        os.Exit(0)
-    }
-    switch os.Args[1] {
-    case "mythic":
-    	fallthrough
-    case "c2":
-    	fallthrough	
-    case "payload":
-    	if len(os.Args) == 2 {
-    		log.Fatalf("[-] Missing subcommand for %s", os.Args[1])
-    	}
+	if len(os.Args) <= 1 {
+		displayHelp()
+		os.Exit(0)
+	}
+	switch os.Args[1] {
+	case "mythic":
+		fallthrough
+	case "c2":
+		fallthrough
+	case "payload":
+		if len(os.Args) == 2 {
+			log.Fatalf("[-] Missing subcommand for %s", os.Args[1])
+		}
 		parseMythicEnvironmentVariables()
-		switch os.Args[2]{
+		switch os.Args[2] {
 		case "start":
 			err := generateCerts()
 			if err != nil {
@@ -1503,41 +1511,41 @@ func main() {
 			if err != nil {
 				os.Exit(1)
 			}
-    	case "add":
-    		fallthrough
-    	case "remove":
-    		addRemoveDockerComposeEntries(os.Args[2], os.Args[1], os.Args[3:], make(map[string]interface{}), false)
-    	case "list":
-    		listGroupEntries(os.Args[1])
-    	default:
-    		log.Fatalf("[-] Unknown subcommand: %s", os.Args[2])
+		case "add":
+			fallthrough
+		case "remove":
+			addRemoveDockerComposeEntries(os.Args[2], os.Args[1], os.Args[3:], make(map[string]interface{}), false)
+		case "list":
+			listGroupEntries(os.Args[1])
+		default:
+			log.Fatalf("[-] Unknown subcommand: %s", os.Args[2])
 		}
-    case "database":
-    	if len(os.Args) == 2 {
-    		log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
-    	}
-    	parseMythicEnvironmentVariables()
-    	databaseReset()
-    case "rabbitmq":
-    	if len(os.Args) == 2 {
-    		log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
-    	}
-    	parseMythicEnvironmentVariables()
-    	rabbitmqReset()
-    case "install":
-    	if len(os.Args) <= 3 {
-    		log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
-    	}
-    	parseMythicEnvironmentVariables()
-    	if os.Args[2] == "github" {
-    		installAgent(os.Args[3], os.Args[4:])
-    	} else if os.Args[2] == "folder" {
-    		installFolder(os.Args[3], os.Args[4:])
-    	} else {
-    		log.Fatalf("[-] unknown install location; should be 'github' or 'folder'\n")
-    	} 
-    case "uninstall":
-    	uninstallService(os.Args[2:])	
+	case "database":
+		if len(os.Args) == 2 {
+			log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
+		}
+		parseMythicEnvironmentVariables()
+		databaseReset()
+	case "rabbitmq":
+		if len(os.Args) == 2 {
+			log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
+		}
+		parseMythicEnvironmentVariables()
+		rabbitmqReset()
+	case "install":
+		if len(os.Args) <= 3 {
+			log.Fatalf("[-] Missing subcommand for %s\n", os.Args[1])
+		}
+		parseMythicEnvironmentVariables()
+		if os.Args[2] == "github" {
+			installAgent(os.Args[3], os.Args[4:])
+		} else if os.Args[2] == "folder" {
+			installFolder(os.Args[3], os.Args[4:])
+		} else {
+			log.Fatalf("[-] unknown install location; should be 'github' or 'folder'\n")
+		}
+	case "uninstall":
+		uninstallService(os.Args[2:])
 	case "status":
 		status()
 	case "logs":
@@ -1550,8 +1558,8 @@ func main() {
 		env(os.Args[2:])
 	case "version":
 		fmt.Printf("[*] mythic-cli version %s\n", mythicCliVersion)
-    default:
-        displayHelp()
-        break
-    }
+	default:
+		displayHelp()
+		break
+	}
 }
