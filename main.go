@@ -1101,7 +1101,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 					finalList = append(finalList, val)
 				}else if stringInSlice(val, diskAgents){
 					// the agent mentioned isn't in docker-compose, but is on disk, ask to add
-					add := askConfirm("\n%s isn't in docker-compose, but is on disk. Would you like to add it? ", val)
+					add := askConfirm(fmt.Sprintf("\n%s isn't in docker-compose, but is on disk. Would you like to add it? ", val))
 					if add {
 						err = addRemoveDockerComposeEntries("add", "c2", []string{val}, make(map[string]interface{}), false, true)
 						if err != nil {
