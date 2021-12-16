@@ -967,7 +967,10 @@ func startStop(action string, group string, containerNameOriginals []string) err
 				}else{
 					runDockerCompose([]string{"down", "--volumes"})
 				}
-				
+				err := checkPorts()
+				if err != nil {
+					return err
+				}
 				c2ContainerList, err := getAllGroupNames("c2")
 				if err != nil {
 					fmt.Printf("[-] Failed to get all c2 services: %v\n", err)
@@ -990,10 +993,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 				finalList := append(mythicContainerList, c2ContainerList...)
 				finalList = append(finalList, payloadContainerList...)
 				rabbitmqReset(false)
-				err = checkPorts()
-				if err != nil {
-					return err
-				}
+				
 				if mythicEnv.GetBool("REBUILD_ON_START"){
 					runDockerCompose(append([]string{"up", "--build", "-d"}, finalList...))
 				}else{
