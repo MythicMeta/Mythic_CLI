@@ -47,7 +47,7 @@ var mythicServices = []string{
 	"mythic_sync",
 }
 var mythicEnv = viper.New()
-var mythicCliVersion = "0.0.5"
+var mythicCliVersion = "0.0.6"
 var buildArguments = []string{}
 func stringInSlice(value string, list []string) bool {
 	for _, e := range list {
@@ -135,6 +135,8 @@ func displayHelp(){
     fmt.Println("      install folder <path to folder>")
     fmt.Println("      uninstall")
     fmt.Println("  version")
+    fmt.Println("  test")
+    fmt.Println("      test connectivity to RabbitMQ and the Mythic UI")
 }
 func generateRandomPassword(pw_length int) string{
     chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
@@ -1955,8 +1957,15 @@ func installFolder(installPath string, args []string) error {
 	    					fmt.Printf("[-] Failed to make payload_service.sh file executable\n")
 	    					continue
 	    				}
+	    			} else if fileExists(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "c2_service.sh")){
+	    				// this is the case where we have a translation container that was bundled with the Payload being installed
+	    				err = os.Chmod(filepath.Join(workingPath, "Payload_Types", f.Name(), "mythic", "c2_service.sh"), 0777)
+	    				if err != nil {
+	    					fmt.Printf("[-] Failed to make c2_service.sh file executable\n")
+	    					continue
+	    				}
 	    			} else {
-	    				fmt.Printf("[-] failed to find payload_service file for %s\n", f.Name())
+	    				fmt.Printf("[-] failed to find payload_service.sh or c2_service.sh file for %s\n", f.Name())
 	    				continue
 	    			}
 	    			//find ./Payload_Types/ -name "payload_service.sh" -exec chmod +x {} \;
@@ -2399,9 +2408,10 @@ func testMythicConnection(){
 		resp, err := http.Get(web_address + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")))
 		if err != nil {
 			fmt.Printf("[-] Failed to make connection to host, retrying in %ds\n", sleepTime)
+			fmt.Printf("%v\n", err)
 		}else{
 			defer resp.Body.Close()
-			if resp.StatusCode == 200{
+			if resp.StatusCode == 200 || resp.StatusCode == 404{
 				fmt.Printf("[+] Successfully connected to Mythic at " + web_address + ":" + strconv.Itoa(mythicEnv.GetInt("NGINX_PORT")) + "\n\n")
 				return
 			}else if resp.StatusCode == 502 || resp.StatusCode == 504{
@@ -3023,6 +3033,10 @@ func main() {
 		if err != nil {
 			os.Exit(1)
 		}
+	case "test":
+		testMythicRabbitmqConnection()
+		testMythicConnection()
+
     default:
         displayHelp()
         break
