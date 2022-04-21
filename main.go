@@ -1066,7 +1066,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 				listWithoutExclusions := removeExclusionsFromSlice("c2", containerList)
 				if len(listWithoutExclusions) == 0 {
 					fmt.Printf("[*] All selected c2 profiles are in the exclusion list.\n")
-					fmt.Printf("[*]   clear the list with: c2 config set excluded_c2_profiles ''\n")
+					fmt.Printf("[*]   clear the list with: config set excluded_c2_profiles ''\n")
 					return nil
 				}
 				if mythicEnv.GetBool("REBUILD_ON_START"){
@@ -1158,7 +1158,7 @@ func startStop(action string, group string, containerNameOriginals []string) err
 				listWithoutExclusions := removeExclusionsFromSlice("payload", containerList)
 				if len(listWithoutExclusions) == 0 {
 					fmt.Printf("[*] All selected payloads are in the exclusion list.\n")
-					fmt.Printf("[*]   clear the list with: payload config set excluded_payload_types ''\n")
+					fmt.Printf("[*]   clear the list with: config set excluded_payload_types ''\n")
 					return nil
 				}
 				if mythicEnv.GetBool("REBUILD_ON_START"){
