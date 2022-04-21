@@ -681,7 +681,7 @@ func status(){
 		fmt.Printf("\n    Use 'sudo ./mythic-cli config set rabbitmq_bind_localhost_only false' and restart mythic ('sudo ./mythic-cli mythic start') to change this\n")
 	}
 	fmt.Printf("[*] If you are using a remote PayloadType or C2Profile, they will need certain environment variables to properly connect to Mythic.\n")
-	fmt.Printf("    Use 'sudo ./mythic-cli payload config' or 'sudo ./mythic-cli c2 config' for easy-to-use configs for these services.\n")
+	fmt.Printf("    Use 'sudo ./mythic-cli config payload' or 'sudo ./mythic-cli config c2' for easy-to-use configs for these services.\n")
 }
 func logs(containerName string){
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
