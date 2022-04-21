@@ -730,6 +730,7 @@ func getMythicEnvList() []string {
 			envList = append(envList, strings.ToUpper(key) + "=" + val)
 		}
 	}
+	envList = append(envList, os.Environ()...)
 	return envList
 }
 func runDockerCompose(args []string) error{
