@@ -734,27 +734,32 @@ func getMythicEnvList() []string {
 	return envList
 }
 func runDockerCompose(args []string) error{
-	path, err := exec.LookPath("docker-compose")
+	path, err := exec.LookPath("docker") 
 	if err != nil {
-		// Before failing, try "docker compose" in case docker-compose
-		// is installed as "docker-compose-plugin"
-		path, err = exec.LookPath("docker") 
-		if err != nil {
-			log.Fatalf("[-] docker is not installed or not available in the current PATH variable")
-		}
-		command := exec.Command(path, "compose", "version")
-		err = command.Run()
+		log.Fatalf("[-] docker is not installed or not available in the current PATH variable")
+	}
+
+	// We check if docker-compose is installed as docker plugin
+	command := exec.Command(path, "compose", "version")
+	err = command.Run()
+	if err == nil {
+		// compose is installed as docker plugin, so we use 
+		// the docker executable and prepend "compose" to our args
+		args = append([]string{"compose"}, args...)
+	} else {
+		// We check for the standalone docker-compose binary
+		path, err = exec.LookPath("docker-compose")
 		if err != nil {
 			log.Fatalf("[-] docker-compose is not installed or not available in the current PATH variable")
 		}
-		args = append([]string{"compose"}, args...)
 	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		log.Fatalf("[-] Failed to get path to current executable")
 	}
 	exePath := filepath.Dir(exe)
-	command := exec.Command(path, args...)
+	command = exec.Command(path, args...)
 	command.Dir = exePath
 	command.Env = getMythicEnvList()
 
