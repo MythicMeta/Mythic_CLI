@@ -736,7 +736,18 @@ func getMythicEnvList() []string {
 func runDockerCompose(args []string) error{
 	path, err := exec.LookPath("docker-compose")
 	if err != nil {
-		log.Fatalf("[-] docker-compose is not installed or not available in the current PATH variable")
+		// Before failing, try "docker compose" in case docker-compose
+		// is installed as "docker-compose-plugin"
+		path, err = exec.LookPath("docker") 
+		if err != nil {
+			log.Fatalf("[-] docker is not installed or not available in the current PATH variable")
+		}
+		command := exec.Command(path, "compose", "version")
+		err = command.Run()
+		if err != nil {
+			log.Fatalf("[-] docker-compose is not installed or not available in the current PATH variable")
+		}
+		args = append([]string{"compose"}, args...)
 	}
 	exe, err := os.Executable()
 	if err != nil {
