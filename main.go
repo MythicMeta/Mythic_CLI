@@ -48,7 +48,7 @@ var mythicServices = []string{
 	"mythic_sync",
 }
 var mythicEnv = viper.New()
-var mythicCliVersion = "0.0.7"
+var mythicCliVersion = "0.0.8"
 var buildArguments = []string{}
 
 func stringInSlice(value string, list []string) bool {
@@ -1433,7 +1433,14 @@ func addRemoveMythicServiceDockerEntries(action string, names []string) {
 			},
 		},
 	}
-	curConfig.Set("networks", network_info)
+	if !curConfig.IsSet("networks") {
+		// don't blow away changes to the network configuration
+		curConfig.Set("networks", network_info)
+	} else {
+		curConfig.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	for _, service := range names {
 		if action == "remove" {
 			if isServiceRunning(service) {
@@ -1753,7 +1760,13 @@ func addRemoveMythicServiceDockerEntries(action string, names []string) {
 			}
 		}
 	}
-	curConfig.Set("networks", network_info)
+	if !curConfig.IsSet("networks") {
+		curConfig.Set("networks", network_info)
+	} else {
+		curConfig.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	curConfig.WriteConfig()
 }
 func addRemoveDockerComposeEntries(action string, group string, names []string, additionalConfigs map[string]interface{}, isUninstall bool, update bool) error {
@@ -1789,7 +1802,13 @@ func addRemoveDockerComposeEntries(action string, group string, names []string, 
 			},
 		},
 	}
-	curConfig.Set("networks", network_info)
+	if !curConfig.IsSet("networks") {
+		curConfig.Set("networks", network_info)
+	} else {
+		curConfig.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	for _, payload := range names {
 		if action == "add" {
 			var absPath string
@@ -1874,7 +1893,13 @@ func addRemoveDockerComposeEntries(action string, group string, names []string, 
 				}
 				delete(pStruct, "networks")
 			}
-			curConfig.Set("networks", network_info)
+			if !curConfig.IsSet("networks") {
+				curConfig.Set("networks", network_info)
+			} else {
+				curConfig.Set("networks.default_network.driver_opts", map[string]string{
+					"com.docker.network.bridge.name": "mythic_if",
+				})
+			}
 			curConfig.Set("services."+strings.ToLower(payload), pStruct)
 			curConfig.WriteConfig()
 			if !update {
@@ -1900,7 +1925,13 @@ func addRemoveDockerComposeEntries(action string, group string, names []string, 
 			fmt.Println("[+] Successfully updated docker-compose.yml")
 		}
 	}
-	curConfig.Set("networks", network_info)
+	if !curConfig.IsSet("networks") {
+		curConfig.Set("networks", network_info)
+	} else {
+		curConfig.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	curConfig.WriteConfig()
 	return nil
 }
@@ -2823,7 +2854,13 @@ func installMythicSyncFolder(installPath string) {
 			},
 		},
 	}
-	viper.Set("networks", network_info)
+	if !viper.IsSet("networks") {
+		viper.Set("networks", network_info)
+	} else {
+		viper.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	err = viper.WriteConfig()
 	if err != nil {
 		log.Fatalf("[-] Failed to write out updated docker-compose file: %v\n", err)
@@ -2939,7 +2976,13 @@ func uninstallMythicSync() {
 			},
 		},
 	}
-	viper.Set("networks", network_info)
+	if !viper.IsSet("networks") {
+		viper.Set("networks", network_info)
+	} else {
+		viper.Set("networks.default_network.driver_opts", map[string]string{
+			"com.docker.network.bridge.name": "mythic_if",
+		})
+	}
 	err := viper.WriteConfig()
 	if err != nil {
 		log.Fatalf("[-] Failed to remove mythic_sync: %v\n", err)

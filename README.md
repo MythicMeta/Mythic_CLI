@@ -4,7 +4,7 @@ Golang code for the `mythic-cli` binary in Mythic. This binary provides control 
 ## mythic-cli help
 
 ```
-mythic-cli usage ( v 0.0.7 ):
+mythic-cli usage ( v 0.0.8 ):
 *************************************************************
 *** source code: https://github.com/MythicMeta/Mythic_CLI ***
 *************************************************************
