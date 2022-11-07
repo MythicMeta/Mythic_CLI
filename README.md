@@ -4,7 +4,7 @@ Golang code for the `mythic-cli` binary in Mythic. This binary provides control 
 ## mythic-cli help
 
 ```
-mythic-cli usage ( v 0.0.5 ):
+mythic-cli usage ( v 0.0.7 ):
 *************************************************************
 *** source code: https://github.com/MythicMeta/Mythic_CLI ***
 *************************************************************
@@ -42,7 +42,8 @@ mythic-cli usage ( v 0.0.5 ):
       install folder <path to folder>
       uninstall
   version
-
+  test
+      test connectivity to RabbitMQ and the Mythic UI
 ```
 
 ## Compilation
@@ -51,4 +52,4 @@ The binary distributed with Mythic is compiled with `go build -ldflags="-s -w" -
 
 ## Version
 
-The current version of the `mythic-cli` code is `0.0.5`
+The current version of the `mythic-cli` code is `0.0.7`
