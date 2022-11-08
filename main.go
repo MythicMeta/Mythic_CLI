@@ -203,7 +203,7 @@ func setMythicConfigDefaultValues() {
 	mythicEnv.SetDefault("mythic_admin_user", "mythic_admin")
 	mythicEnv.SetDefault("mythic_admin_password", generateRandomPassword(30))
 	mythicEnv.SetDefault("default_operation_name", "Operation Chimera")
-	mythicEnv.SetDefault("allowed_ip_blocks", "0.0.0.0/0")
+	mythicEnv.SetDefault("allowed_ip_blocks", "0.0.0.0/0,::/0")
 	mythicEnv.SetDefault("server_header", "nginx 1.2")
 	mythicEnv.SetDefault("web_log_size", 1024000)
 	mythicEnv.SetDefault("web_keep_logs", false)
