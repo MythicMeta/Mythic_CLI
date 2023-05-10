@@ -1,3 +1,7 @@
+# Deprecated
+
+This repository is deprecated as the `Mythic_CLI` source is now part of the main Mythic repository at https://github.com/its-a-feature/Mythic.
+
 # Mythic_CLI
 Golang code for the `mythic-cli` binary in Mythic. This binary provides control for various aspects of Mythic configuration.
 
